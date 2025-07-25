@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.main import app
-from app import transcriber, llm_agent, billing_adapter, persistence
+from app import transcriber, llm_agent, billing_adapter, persistence, tts, telephony
 from app.models import InvoiceContext
 
 class DummyResponse:
@@ -128,3 +128,46 @@ def test_process_audio(monkeypatch, tmp_data_dir):
     assert data["transcript"] == "transcript"
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["billing_result"] == {"ok": True}
+
+
+def test_text_to_speech(monkeypatch):
+    class DummyTTS:
+        def __init__(self, text, lang="de"):
+            self.text = text
+            self.lang = lang
+
+        def write_to_fp(self, fp):
+            fp.write(b"mp3")
+
+    monkeypatch.setattr(tts, "gTTS", DummyTTS)
+    result = tts.text_to_speech("hallo")
+    assert result == b"mp3"
+
+
+def test_twilio_recording(monkeypatch, tmp_data_dir):
+    monkeypatch.setattr(telephony, "download_recording", lambda url: b"audio")
+    monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: "transcript")
+    monkeypatch.setattr(telephony, "transcribe_audio", lambda b: "transcript")
+    dummy_json = json.dumps(
+        {
+            "type": "InvoiceContext",
+            "customer": {"name": "Hans"},
+            "service": {"description": "test", "materialIncluded": True},
+            "amount": {"total": 100.0, "currency": "EUR"},
+        }
+    )
+    monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(telephony, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(billing_adapter, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(telephony, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(telephony, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(tts, "text_to_speech", lambda t: b"mp3")
+    monkeypatch.setattr(telephony, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    response = client.post(
+        "/twilio/recording",
+        data={"RecordingUrl": "http://example.com/audio"},
+    )
+    assert response.status_code == 200
