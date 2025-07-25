@@ -1,0 +1,130 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import app.main as app_main
+import json
+from pathlib import Path
+from fastapi.testclient import TestClient
+import pytest
+
+from app.main import app
+from app import transcriber, llm_agent, billing_adapter, persistence
+from app.models import InvoiceContext
+
+class DummyResponse:
+    def __init__(self, text):
+        self.text = text
+
+
+class DummyChatResponse:
+    class DummyChoice:
+        class DummyMessage:
+            def __init__(self, content):
+                self.content = content
+
+        def __init__(self, content):
+            self.message = DummyChatResponse.DummyChoice.DummyMessage(content)
+
+    def __init__(self, content):
+        self.choices = [DummyChatResponse.DummyChoice(content)]
+
+class DummyOpenAI:
+    def __init__(self, result):
+        self.result = result
+
+    class Audio:
+        def __init__(self, parent):
+            self.parent = parent
+
+        class Transcriptions:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def create(self, **kwargs):
+                return DummyResponse(self.parent.parent.result)
+
+        @property
+        def transcriptions(self):
+            return DummyOpenAI.Audio.Transcriptions(self)
+
+    class Chat:
+        def __init__(self, parent):
+            self.parent = parent
+
+        class Completions:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def create(self, **kwargs):
+                return DummyChatResponse(self.parent.parent.result)
+
+        @property
+        def completions(self):
+            return DummyOpenAI.Chat.Completions(self)
+
+    @property
+    def audio(self):
+        return DummyOpenAI.Audio(self)
+
+    @property
+    def chat(self):
+        return DummyOpenAI.Chat(self)
+
+@pytest.fixture
+
+def tmp_data_dir(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    monkeypatch.setattr(persistence, "DATA_DIR", data_dir)
+    data_dir.mkdir()
+    yield data_dir
+
+
+def test_transcribe_audio(monkeypatch):
+    monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAI("hallo"))
+    result = transcriber.transcribe_audio(b"audio")
+    assert result == "hallo"
+
+
+def test_extract_invoice_context(monkeypatch):
+    dummy_json = json.dumps({"type": "InvoiceContext"})
+    monkeypatch.setattr(llm_agent, "OpenAI", lambda: DummyOpenAI(dummy_json))
+    result = llm_agent.extract_invoice_context("text")
+    assert json.loads(result)["type"] == "InvoiceContext"
+
+
+def test_store_interaction(tmp_data_dir):
+    invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, amount={})
+    session_dir = persistence.store_interaction(b"audio", "transcript", invoice)
+    p = Path(session_dir)
+    assert (p / "audio.wav").exists()
+    assert (p / "transcript.txt").exists()
+    assert (p / "invoice.json").exists()
+
+
+def test_process_audio(monkeypatch, tmp_data_dir):
+    monkeypatch.setattr(transcriber, "transcribe_audio", lambda x: "transcript")
+    monkeypatch.setattr(app_main, "transcribe_audio", lambda x: "transcript")
+    dummy_json = json.dumps(
+        {
+            "type": "InvoiceContext",
+            "customer": {"name": "Hans"},
+            "service": {"description": "test", "materialIncluded": True},
+            "amount": {"total": 100.0, "currency": "EUR"},
+        }
+    )
+    monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(app_main, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(billing_adapter, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(app_main, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: "dir")
+    monkeypatch.setattr(app_main, "store_interaction", lambda a, t, i: "dir")
+
+    client = TestClient(app)
+    response = client.post(
+        "/process-audio/",
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transcript"] == "transcript"
+    assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["billing_result"] == {"ok": True}
