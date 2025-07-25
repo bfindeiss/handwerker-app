@@ -219,6 +219,41 @@ def test_twilio_recording(monkeypatch, tmp_data_dir):
         data={"RecordingUrl": "http://example.com/audio"},
     )
     assert response.status_code == 200
+
+
+def test_sipgate_recording(monkeypatch, tmp_data_dir):
+    monkeypatch.setattr(app_settings.settings, "telephony_provider", "sipgate")
+    import importlib
+    telephony_mod = importlib.reload(telephony)
+
+    monkeypatch.setattr(telephony_mod, "download_recording", lambda url: b"audio")
+    monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: "transcript")
+    monkeypatch.setattr(telephony_mod, "transcribe_audio", lambda b: "transcript")
+    dummy_json = json.dumps({
+        "type": "InvoiceContext",
+        "customer": {"name": "Hans"},
+        "service": {"description": "test", "materialIncluded": True},
+        "amount": {"total": 100.0, "currency": "EUR"},
+    })
+    monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(telephony_mod, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(billing_adapter, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(telephony_mod, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(telephony_mod, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(tts, "text_to_speech", lambda t: b"mp3")
+    monkeypatch.setattr(telephony_mod, "text_to_speech", lambda t: b"mp3")
+
+    from fastapi import FastAPI
+
+    test_app = FastAPI()
+    test_app.include_router(telephony_mod.router)
+    client = TestClient(test_app)
+    response = client.post(
+        "/sipgate/recording",
+        data={"recordingUrl": "http://example.com/audio"},
+    )
+    assert response.status_code == 200 or response.json().get("status") == "ok"
  
 
 def test_sevdesk_mcp_adapter(monkeypatch):
