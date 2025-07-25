@@ -4,9 +4,11 @@ from app.llm_agent import extract_invoice_context
 from app.billing_adapter import send_to_billing_system
 from app.persistence import store_interaction
 from app.models import InvoiceContext
+from app.telephony import router as telephony_router
 import json
 
 app = FastAPI()
+app.include_router(telephony_router)
 
 @app.post("/process-audio/")
 async def process_audio(file: UploadFile = File(...)):
