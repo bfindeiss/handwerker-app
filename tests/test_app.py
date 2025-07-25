@@ -8,6 +8,7 @@ import pytest
 
 from app.main import app
 from app import transcriber, llm_agent, billing_adapter, persistence, tts, telephony
+from app import settings as app_settings
 from app.models import InvoiceContext
 
 class DummyResponse:
@@ -79,14 +80,53 @@ def tmp_data_dir(tmp_path, monkeypatch):
 
 
 def test_transcribe_audio(monkeypatch):
+    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
+    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
     monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAI("hallo"))
     result = transcriber.transcribe_audio(b"audio")
     assert result == "hallo"
 
 
+def test_transcribe_audio_command(monkeypatch):
+    monkeypatch.setattr(transcriber.settings, "stt_provider", "command")
+    monkeypatch.setattr(transcriber.settings, "stt_model", "dummycmd")
+
+    def fake_run(cmd, capture_output=True, text=True, check=True):
+        class R:
+            stdout = "hi\n"
+
+        return R()
+
+    monkeypatch.setattr(transcriber.subprocess, "run", fake_run)
+    result = transcriber.transcribe_audio(b"audio")
+    assert result == "hi"
+
+
 def test_extract_invoice_context(monkeypatch):
     dummy_json = json.dumps({"type": "InvoiceContext"})
+    monkeypatch.setattr(llm_agent.settings, "llm_provider", "openai")
+    monkeypatch.setattr(llm_agent.settings, "llm_model", "gpt-4o")
     monkeypatch.setattr(llm_agent, "OpenAI", lambda: DummyOpenAI(dummy_json))
+    result = llm_agent.extract_invoice_context("text")
+    assert json.loads(result)["type"] == "InvoiceContext"
+
+
+def test_extract_invoice_context_ollama(monkeypatch):
+    dummy_json = json.dumps({"type": "InvoiceContext"})
+    monkeypatch.setattr(llm_agent.settings, "llm_provider", "ollama")
+    monkeypatch.setattr(llm_agent.settings, "llm_model", "test")
+
+    def fake_post(url, json=None, timeout=60):
+        class Resp:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"response": dummy_json}
+
+        return Resp()
+
+    monkeypatch.setattr(llm_agent.requests, "post", fake_post)
     result = llm_agent.extract_invoice_context("text")
     assert json.loads(result)["type"] == "InvoiceContext"
 

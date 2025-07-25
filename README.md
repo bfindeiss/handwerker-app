@@ -14,6 +14,10 @@ cp .env.example .env  # OPENAI_API_KEY setzen
 # bei Anbindung an sevDesk per MCP:
 # BILLING_ADAPTER=app.billing_adapters.sevdesk_mcp:SevDeskMCPAdapter
 # MCP_ENDPOINT=http://localhost:8001
+# LLM_PROVIDER=openai|ollama
+# LLM_MODEL=gpt-4o
+# STT_PROVIDER=openai|command
+# STT_MODEL=whisper-1
 uvicorn app.main:app --reload
 ```
 
@@ -37,6 +41,18 @@ Rechnungsdaten sowie Informationen zum Speicherort der Ablage im
 Verzeichnis `data/`.
 
 POST `/process-audio/` mit `multipart/form-data` (`file`) gibt das erkannte Transkript sowie die extrahierte Rechnung als JSON zurück. Alle Daten werden zur Nachvollziehbarkeit im Ordner `data/` abgelegt.
+
+## Lokaler LLM (Ollama)
+Um ein lokales Modell über Ollama zu nutzen, muss zunächst der Ollama Server laufen:
+```bash
+ollama serve &
+```
+Dann in der `.env` folgende Einstellungen setzen:
+```bash
+LLM_PROVIDER=ollama
+LLM_MODEL=mistral
+```
+`OLLAMA_BASE_URL` kann bei Bedarf angepasst werden. Danach wie gewohnt `uvicorn` starten und Anfragen an `/process-audio/` senden.
 
 ## Tests ausführen
 ```bash
