@@ -5,3 +5,4 @@ class InvoiceContext(BaseModel):
     customer: dict
     service: dict
     amount: dict
+
