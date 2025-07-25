@@ -18,8 +18,25 @@ cp .env.example .env  # OPENAI_API_KEY setzen
 # LLM_MODEL=gpt-4o
 # STT_PROVIDER=openai|command
 # STT_MODEL=whisper-1
+
+# TELEPHONY_PROVIDER=twilio|sipgate
 uvicorn app.main:app --reload
 ```
+
+## Telefonie konfigurieren
+
+Je nach Anbieter wird ein anderer Webhook aktiviert. In der `.env` kann mit
+`TELEPHONY_PROVIDER` entweder `twilio` oder `sipgate` gewählt werden.
+
+| Provider | Voice-Webhook                | Recording-Webhook             |
+| -------- | --------------------------- | ----------------------------- |
+| Twilio   | `/twilio/voice`             | `/twilio/recording`           |
+| sipgate  | `/sipgate/voice`            | `/sipgate/recording`          |
+
+Die eigene Rufnummer muss beim jeweiligen Anbieter so eingerichtet werden,
+dass eingehende Anrufe auf den entsprechenden `voice`-Endpunkt verweisen.
+Nach dem Auflegen ruft der Provider den zugehörigen `recording`-Endpunkt auf,
+woraufhin die Audiodaten gespeichert und verarbeitet werden.
 
 Ist der Server gestartet, kann Audio per HTTP-POST an die Anwendung
 gesendet werden. Das folgende Beispiel verwendet `curl` und schickt

@@ -9,7 +9,7 @@ Entwicklung eines modularen Sprachassistenzsystems, das Telefongespräche mit Ha
 
 ### 1. Telefonie-Schnittstelle
 - **Ziel:** Annahme und Abwicklung von Telefongesprächen
-- **Technologien:** Twilio, SIP-Bridge, Asterisk
+- **Technologien:** Twilio, sipgate.io, SIP-Bridge, Asterisk
 - **Funktionen:**
   - Anruf entgegennehmen/weiterleiten
   - Audio-Stream oder Aufnahme speichern (WAV/MP3)

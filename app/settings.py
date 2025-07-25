@@ -11,5 +11,6 @@ class Settings:
     ollama_base_url: str = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
     stt_provider: str = os.getenv('STT_PROVIDER', 'openai')
     stt_model: str = os.getenv('STT_MODEL', 'whisper-1')
+    telephony_provider: str = os.getenv('TELEPHONY_PROVIDER', 'twilio')
 
 settings = Settings()
