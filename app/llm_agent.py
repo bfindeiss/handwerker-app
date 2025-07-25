@@ -8,12 +8,12 @@ Du bist ein KI-Assistent für Handwerker. Extrahiere aus folgendem Text eine str
 
 {{
   "type": "InvoiceContext",
-  "customer": { "name": str },
-  "service": { "description": str, "materialIncluded": bool },
-  "amount": { "total": float, "currency": "EUR" }
+  "customer": {{ "name": str }},
+  "service": {{ "description": str, "materialIncluded": bool }},
+  "amount": {{ "total": float, "currency": "EUR" }}
 }}
 
-Text: \"{transcript}\"
+Text: "{transcript}"
 Nur JSON antworten.
 """
     response = client.chat.completions.create(
