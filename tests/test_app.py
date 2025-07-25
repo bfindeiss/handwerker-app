@@ -130,6 +130,14 @@ def test_process_audio(monkeypatch, tmp_data_dir):
     assert data["billing_result"] == {"ok": True}
 
 
+def test_root_endpoint():
+    client = TestClient(app)
+    response = client.get("/")
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+
+
 def test_text_to_speech(monkeypatch):
     class DummyTTS:
         def __init__(self, text, lang="de"):

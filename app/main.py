@@ -10,6 +10,15 @@ import json
 app = FastAPI()
 app.include_router(telephony_router)
 
+
+@app.get("/")
+def read_root():
+    """Simple health/info endpoint for the API root."""
+    return {
+        "message": "Handwerker Sprachassistent läuft",
+        "usage": "POST audio file to /process-audio/",
+    }
+
 @app.post("/process-audio/")
 async def process_audio(file: UploadFile = File(...)):
     audio_bytes = await file.read()
