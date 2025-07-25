@@ -37,6 +37,7 @@ Entwicklung eines modularen Sprachassistenzsystems, das Telefongespräche mit Ha
 - **Funktionen:**
   - Einbindung über Adapter mit abstrakten Schnittstellen
   - Nutzung modellkonformer Protokolle (MCP) statt hardcoded APIs
+  - Beispieladapter `SevDeskMCPAdapter` kommuniziert über HTTP mit einem MCP-Server
 
 ### 5. Persistenz und Protokollierung
 - **Ziel:** Speicherung aller relevanten Kommunikations- und Rechnungsdaten
@@ -92,6 +93,8 @@ Entwicklung eines modularen Sprachassistenzsystems, das Telefongespräche mit Ha
   - Austauschbarkeit aller Komponenten über definierte Schnittstellen  
   - Unterstützung mehrerer LLMs, STT/TTS-Systeme und API-Anbieter  
   - Adapter/Plugin-Architektur zur Erweiterung
+  - Auswahl des aktiven Adapters über die Umgebungsvariable `BILLING_ADAPTER`
+  - MCP-Server-Adresse über `MCP_ENDPOINT` konfigurierbar
 
 - **Abstraktion der Schnittstellen:**  
   - Klare Trennung zwischen interner Logik und externer Anbindung  
