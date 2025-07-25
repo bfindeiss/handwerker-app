@@ -1,14 +1,31 @@
+"""Speech-to-text provider abstraction."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
 from io import BytesIO
-import tempfile
 import os
 import shlex
 import subprocess
+import tempfile
 from openai import OpenAI
+
 from app.settings import settings
 
 
-def transcribe_audio(audio_bytes: bytes) -> str:
-    if settings.stt_provider == "openai":
+class STTProvider(ABC):
+    """Abstract base class for speech-to-text backends."""
+
+    @abstractmethod
+    def transcribe(self, audio_bytes: bytes) -> str:
+        """Convert raw audio bytes to text."""
+        raise NotImplementedError
+
+
+class OpenAITranscriber(STTProvider):
+    """Use OpenAI Whisper API for transcription."""
+
+    def transcribe(self, audio_bytes: bytes) -> str:
         client = OpenAI()
         response = client.audio.transcriptions.create(
             model=settings.stt_model,
@@ -16,7 +33,12 @@ def transcribe_audio(audio_bytes: bytes) -> str:
             response_format="text",
         )
         return response.text if hasattr(response, "text") else str(response)
-    elif settings.stt_provider == "command":
+
+
+class CommandTranscriber(STTProvider):
+    """Run a local command line tool for transcription."""
+
+    def transcribe(self, audio_bytes: bytes) -> str:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
             tmp.write(audio_bytes)
             tmp.flush()
@@ -28,6 +50,18 @@ def transcribe_audio(audio_bytes: bytes) -> str:
             )
         os.unlink(tmp.name)
         return result.stdout.strip()
-    else:
-        raise ValueError(f"Unsupported STT_PROVIDER {settings.stt_provider}")
+
+
+def _select_provider() -> STTProvider:
+    if settings.stt_provider == "openai":
+        return OpenAITranscriber()
+    if settings.stt_provider == "command":
+        return CommandTranscriber()
+    raise ValueError(f"Unsupported STT_PROVIDER {settings.stt_provider}")
+
+
+def transcribe_audio(audio_bytes: bytes) -> str:
+    """Transcribe audio using the configured provider."""
+    provider = _select_provider()
+    return provider.transcribe(audio_bytes)
 

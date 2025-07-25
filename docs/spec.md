@@ -107,4 +107,17 @@ Entwicklung eines modularen Sprachassistenzsystems, das Telefongespräche mit Ha
 
 - **Protokollierung:**  
   - Vollständige Gesprächshistorie (Text + Audio)  
-  - Revisionssichere Speicherung der generierten Daten (Rechnungen, Kundendaten)
+- Revisionssichere Speicherung der generierten Daten (Rechnungen, Kundendaten)
+
+### Konfiguration
+Die folgenden Umgebungsvariablen steuern die einzelnen Module und erlauben den
+Austausch der Implementierungen:
+
+- `BILLING_ADAPTER` – Pfad zum Rechnungsadapter (`modul:Klasse`)
+- `MCP_ENDPOINT` – Adresse eines MCP-kompatiblen Servers
+- `LLM_PROVIDER` / `LLM_MODEL` – Auswahl und Modellname des LLM (z. B. `openai`,
+  `ollama`)
+- `OLLAMA_BASE_URL` – Basis-URL für einen lokalen Ollama-Server
+- `STT_PROVIDER` / `STT_MODEL` – Backend für Speech‑to‑Text (`openai` oder
+  lokales Kommando)
+- `TELEPHONY_PROVIDER` – Telefonieintegration (`twilio` oder `sipgate`)
