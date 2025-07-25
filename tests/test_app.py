@@ -179,3 +179,27 @@ def test_twilio_recording(monkeypatch, tmp_data_dir):
         data={"RecordingUrl": "http://example.com/audio"},
     )
     assert response.status_code == 200
+ 
+
+def test_sevdesk_mcp_adapter(monkeypatch):
+    import app.billing_adapters.sevdesk_mcp as sevdesk_mcp
+    adapter = sevdesk_mcp.SevDeskMCPAdapter()
+    called = {}
+
+    def fake_post(url, json=None, timeout=10):
+        called['url'] = url
+        called['json'] = json
+        class Resp:
+            def raise_for_status(self):
+                pass
+            def json(self):
+                return {"status": "ok"}
+        return Resp()
+
+    monkeypatch.setattr(sevdesk_mcp.requests, 'post', fake_post)
+    invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, amount={})
+    result = adapter.send_invoice(invoice)
+    assert called['url'].endswith('/invoice')
+    assert called['json']['type'] == 'InvoiceContext'
+    assert result == {"status": "ok"}
+

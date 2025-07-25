@@ -10,6 +10,10 @@ pip install -r requirements.txt
 # installiert auch uvicorn, den ASGI-Server für FastAPI
 # alternativ: pip install uvicorn
 cp .env.example .env  # OPENAI_API_KEY setzen
+# optional: BILLING_ADAPTER=app.billing_adapters.simple:SimpleAdapter
+# bei Anbindung an sevDesk per MCP:
+# BILLING_ADAPTER=app.billing_adapters.sevdesk_mcp:SevDeskMCPAdapter
+# MCP_ENDPOINT=http://localhost:8001
 uvicorn app.main:app --reload
 ```
 
@@ -21,6 +25,12 @@ eine WAV-Datei an den Endpunkt:
 curl -X POST -F "file=@/pfad/zu/audio.wav" \
   http://127.0.0.1:8000/process-audio/
 ```
+
+Der zu nutzende Rechnungsadapter kann über die Umgebungsvariable
+`BILLING_ADAPTER` angegeben werden. Standardmäßig wird ein Dummy-Adapter
+verwendet, der die Rechnung nur speichert.
+Möchtest du Rechnungen direkt an sevDesk übermitteln, kannst du den
+`SevDeskMCPAdapter` nutzen, der das Model Context Protocol spricht.
 
 Die Antwort enthält das erkannte Transkript, die extrahierten
 Rechnungsdaten sowie Informationen zum Speicherort der Ablage im
