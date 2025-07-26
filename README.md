@@ -58,6 +58,9 @@ Verzeichnis `data/`.
 
 POST `/process-audio/` mit `multipart/form-data` (`file`) gibt das erkannte Transkript sowie die extrahierte Rechnung als JSON zurück. Alle Daten werden zur Nachvollziehbarkeit im Ordner `data/` abgelegt.
 
+### Weboberfläche
+Zum schnellen Testen gibt es eine kleine HTML-Oberfläche unter `/web`. Dort kann direkt im Browser eine Aufnahme gestartet und anschließend als WAV-Datei an `/process-audio/` gesendet werden. Das Ergebnis wird nach dem Upload auf der Seite dargestellt.
+
 ## Lokaler LLM (Ollama)
 Um ein lokales Modell über Ollama zu nutzen, muss zunächst der Ollama Server laufen:
 ```bash

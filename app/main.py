@@ -1,4 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from app.transcriber import transcribe_audio
 from app.llm_agent import extract_invoice_context
 from app.billing_adapter import send_to_billing_system
@@ -8,6 +10,7 @@ from app.telephony import router as telephony_router
 import json
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(telephony_router)
 
 
@@ -18,6 +21,12 @@ def read_root():
         "message": "Handwerker Sprachassistent läuft",
         "usage": "POST audio file to /process-audio/",
     }
+
+
+@app.get("/web")
+def web_interface():
+    """Serve simple HTML interface for recording and uploading audio."""
+    return FileResponse("app/static/index.html")
 
 @app.post("/process-audio/")
 async def process_audio(file: UploadFile = File(...)):
