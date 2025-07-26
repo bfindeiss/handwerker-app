@@ -68,6 +68,7 @@ Dann in der `.env` folgende Einstellungen setzen:
 LLM_PROVIDER=ollama
 LLM_MODEL=mistral
 ```
+Das kompakte Modell `mistral` (z.B. `mistral:latest`) liefert gute Ergebnisse bei geringem Ressourcenverbrauch und eignet sich daher besonders für dieses Projekt.
 `OLLAMA_BASE_URL` kann bei Bedarf angepasst werden. Danach wie gewohnt `uvicorn` starten und Anfragen an `/process-audio/` senden.
 
 ## MacBook Pro: Lokale Ausführung mit Ollama
