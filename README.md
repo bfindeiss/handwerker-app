@@ -70,6 +70,35 @@ LLM_MODEL=mistral
 ```
 `OLLAMA_BASE_URL` kann bei Bedarf angepasst werden. Danach wie gewohnt `uvicorn` starten und Anfragen an `/process-audio/` senden.
 
+## MacBook Pro: Lokale Ausführung mit Ollama
+Folgende Schritte richten das Projekt auf macOS ein und starten es. Alle Befehle
+können durch Ausführen des beiliegenden Skripts `scripts/run_mac_ollama.sh`
+mit einem Klick ausgeführt werden.
+
+```bash
+# Repository klonen und ins Verzeichnis wechseln
+# git clone <diese-repo-url> handwerker-app
+# cd handwerker-app
+
+# Startskript ausführen
+bash scripts/run_mac_ollama.sh
+```
+
+Das Skript erstellt ein virtuelles Python-Environment, installiert die
+Abhängigkeiten, kopiert bei Bedarf die Beispielkonfiguration und startet
+anschließend den Ollama-Server sowie die FastAPI-Anwendung.
+Bei Bedarf lassen sich die Befehle auch manuell ausführen:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env # OPENAI_API_KEY anpassen
+ollama serve &
+uvicorn app.main:app --reload
+```
+
+
 ## Tests ausführen
 ```bash
 pytest
