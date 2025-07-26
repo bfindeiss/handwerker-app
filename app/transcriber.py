@@ -52,12 +52,18 @@ class CommandTranscriber(STTProvider):
         return result.stdout.strip()
 
 
+_STT_PROVIDERS: dict[str, type[STTProvider]] = {
+    "openai": OpenAITranscriber,
+    "command": CommandTranscriber,
+}
+
+
 def _select_provider() -> STTProvider:
-    if settings.stt_provider == "openai":
-        return OpenAITranscriber()
-    if settings.stt_provider == "command":
-        return CommandTranscriber()
-    raise ValueError(f"Unsupported STT_PROVIDER {settings.stt_provider}")
+    try:
+        provider_cls = _STT_PROVIDERS[settings.stt_provider]
+    except KeyError:  # pragma: no cover - configuration error
+        raise ValueError(f"Unsupported STT_PROVIDER {settings.stt_provider}")
+    return provider_cls()
 
 
 def transcribe_audio(audio_bytes: bytes) -> str:

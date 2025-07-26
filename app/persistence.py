@@ -13,5 +13,5 @@ def store_interaction(audio: bytes, transcript: str, invoice: InvoiceContext) ->
     session_dir.mkdir(parents=True, exist_ok=True)
     (session_dir / "audio.wav").write_bytes(audio)
     (session_dir / "transcript.txt").write_text(transcript, encoding="utf-8")
-    (session_dir / "invoice.json").write_text(json.dumps(invoice.dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    (session_dir / "invoice.json").write_text(json.dumps(invoice.model_dump(), ensure_ascii=False, indent=2), encoding="utf-8")
     return str(session_dir)

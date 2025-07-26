@@ -13,7 +13,7 @@ class SevDeskMCPAdapter(BillingAdapter):
 
     def send_invoice(self, invoice: InvoiceContext) -> dict:
         url = f"{self.endpoint.rstrip('/')}/invoice"
-        response = requests.post(url, json=invoice.dict(), timeout=10)
+        response = requests.post(url, json=invoice.model_dump(), timeout=10)
         response.raise_for_status()
         return response.json()
 

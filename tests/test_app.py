@@ -70,13 +70,6 @@ class DummyOpenAI:
     def chat(self):
         return DummyOpenAI.Chat(self)
 
-@pytest.fixture
-
-def tmp_data_dir(tmp_path, monkeypatch):
-    data_dir = tmp_path / "data"
-    monkeypatch.setattr(persistence, "DATA_DIR", data_dir)
-    data_dir.mkdir()
-    yield data_dir
 
 
 def test_transcribe_audio(monkeypatch):
