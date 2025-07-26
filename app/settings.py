@@ -12,5 +12,7 @@ class Settings:
     stt_provider: str = os.getenv('STT_PROVIDER', 'openai')
     stt_model: str = os.getenv('STT_MODEL', 'whisper-1')
     telephony_provider: str = os.getenv('TELEPHONY_PROVIDER', 'twilio')
+    tts_provider: str = os.getenv('TTS_PROVIDER', 'gtts')
+    elevenlabs_api_key: str | None = os.getenv('ELEVENLABS_API_KEY')
 
 settings = Settings()

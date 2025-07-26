@@ -19,6 +19,7 @@ cp .env.example .env  # OPENAI_API_KEY setzen
 # STT_PROVIDER=openai|command
 # STT_MODEL=whisper-1
 # TELEPHONY_PROVIDER=twilio|sipgate
+# TTS_PROVIDER=gtts|elevenlabs
 uvicorn app.main:app --reload
 ```
 
