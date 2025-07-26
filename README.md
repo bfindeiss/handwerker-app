@@ -124,3 +124,18 @@ Anwendung lässt sich dank Dockerfile einfach deployen:
 Damit läuft der Sprachassistent günstig in der Cloud und kann über die
 öffentliche URL von Render erreicht werden.
 
+
+
+## iPhone: Lokaler Test mit Pyto (experimentell)
+Um die Anwendung direkt auf einem iPhone zu starten, kann die App
+[Pyto](https://apps.apple.com/app/pyto-python-3/id1436650069) verwendet
+werden. Nach dem Kopieren des Repository-Verzeichnisses (z.B. via iCloud)
+öffnest du in Pyto das Skript `scripts/run_ios_openai.py` und führst es aus.
+Das Skript installiert die Python-Abhängigkeiten, legt falls nötig eine
+`.env`-Datei an und startet anschließend `uvicorn`.
+
+Aufgrund fehlender Ollama-Unterstützung nutzt diese Variante den
+OpenAI-Provider. Achte darauf, deinen `OPENAI_API_KEY` in der `.env`
+zu hinterlegen. Danach ist die Weboberfläche unter
+`http://localhost:8000/web` erreichbar und es lassen sich wie gewohnt
+Audioaufnahmen hochladen.
