@@ -12,6 +12,7 @@ from app.models import InvoiceContext
 
 
 def test_default_billing_adapter(monkeypatch):
+    """Uses default adapter when none specified"""
     monkeypatch.setattr(app_settings.settings, "billing_adapter", None)
     importlib.reload(billing_adapter)
     invoice = InvoiceContext(type="InvoiceContext", customer={"name": "Max"}, service={}, amount={})
@@ -21,6 +22,7 @@ def test_default_billing_adapter(monkeypatch):
 
 
 def test_env_billing_adapter(monkeypatch):
+    """Loads adapter from environment variable"""
     monkeypatch.setattr(app_settings.settings, "billing_adapter", "app.billing_adapters.simple:SimpleAdapter")
     importlib.reload(billing_adapter)
     adapter = billing_adapter.get_adapter()
@@ -29,6 +31,7 @@ def test_env_billing_adapter(monkeypatch):
 
 
 def test_invalid_billing_adapter(monkeypatch):
+    """Raises error if adapter string invalid"""
     monkeypatch.setattr(app_settings.settings, "billing_adapter", "app.models:InvoiceContext")
     importlib.reload(billing_adapter)
     with pytest.raises(TypeError):
@@ -36,6 +39,7 @@ def test_invalid_billing_adapter(monkeypatch):
 
 
 def test_invalid_stt_provider(monkeypatch):
+    """Rejects invalid STT provider configuration"""
     from app import transcriber
     monkeypatch.setattr(app_settings.settings, "stt_provider", "foo")
     importlib.reload(transcriber)
@@ -44,6 +48,7 @@ def test_invalid_stt_provider(monkeypatch):
 
 
 def test_invalid_llm_provider(monkeypatch):
+    """Rejects invalid LLM provider configuration"""
     from app import llm_agent
     monkeypatch.setattr(app_settings.settings, "llm_provider", "foo")
     importlib.reload(llm_agent)
@@ -52,6 +57,7 @@ def test_invalid_llm_provider(monkeypatch):
 
 
 def test_twilio_voice_endpoint(monkeypatch):
+    """Returns XML for Twilio voice webhooks"""
     monkeypatch.setattr(app_settings.settings, "telephony_provider", "twilio")
     importlib.reload(telephony)
     from fastapi import FastAPI
@@ -64,6 +70,7 @@ def test_twilio_voice_endpoint(monkeypatch):
 
 
 def test_sipgate_voice_endpoint(monkeypatch):
+    """Returns configuration for sipgate voice"""
     monkeypatch.setattr(app_settings.settings, "telephony_provider", "sipgate")
     telephony_mod = importlib.reload(telephony)
     from fastapi import FastAPI
@@ -76,6 +83,7 @@ def test_sipgate_voice_endpoint(monkeypatch):
 
 
 def test_store_interaction_unique_dirs(monkeypatch, tmp_path):
+    """Creates unique directories for each interaction"""
     from datetime import datetime
     monkeypatch.setattr(persistence, "DATA_DIR", tmp_path)
     class DummyDT(datetime):
