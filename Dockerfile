@@ -11,4 +11,6 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render.com setzt die Portnummer über die Umgebungsvariable $PORT.
+# Per "sh -c" können wir die Variable auswerten und sonst auf 8000 zurückfallen.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
