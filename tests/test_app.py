@@ -80,6 +80,7 @@ def tmp_data_dir(tmp_path, monkeypatch):
 
 
 def test_transcribe_audio(monkeypatch):
+    """Transcribes audio using OpenAI STT"""
     monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
     monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
     monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAI("hallo"))
@@ -88,6 +89,7 @@ def test_transcribe_audio(monkeypatch):
 
 
 def test_transcribe_audio_command(monkeypatch):
+    """Transcribes audio using a command line STT backend"""
     monkeypatch.setattr(transcriber.settings, "stt_provider", "command")
     monkeypatch.setattr(transcriber.settings, "stt_model", "dummycmd")
 
@@ -103,6 +105,7 @@ def test_transcribe_audio_command(monkeypatch):
 
 
 def test_extract_invoice_context(monkeypatch):
+    """Extracts invoice context from text via OpenAI LLM"""
     dummy_json = json.dumps({"type": "InvoiceContext"})
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "openai")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "gpt-4o")
@@ -112,6 +115,7 @@ def test_extract_invoice_context(monkeypatch):
 
 
 def test_extract_invoice_context_ollama(monkeypatch):
+    """Extracts invoice context via Ollama LLM"""
     dummy_json = json.dumps({"type": "InvoiceContext"})
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "ollama")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "test")
@@ -132,6 +136,7 @@ def test_extract_invoice_context_ollama(monkeypatch):
 
 
 def test_store_interaction(tmp_data_dir):
+    """Stores audio, transcript and invoice files"""
     invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, amount={})
     session_dir = persistence.store_interaction(b"audio", "transcript", invoice)
     p = Path(session_dir)
@@ -141,6 +146,7 @@ def test_store_interaction(tmp_data_dir):
 
 
 def test_process_audio(monkeypatch, tmp_data_dir):
+    """Processes audio upload end-to-end"""
     monkeypatch.setattr(transcriber, "transcribe_audio", lambda x: "transcript")
     monkeypatch.setattr(app_main, "transcribe_audio", lambda x: "transcript")
     dummy_json = json.dumps(
@@ -171,6 +177,7 @@ def test_process_audio(monkeypatch, tmp_data_dir):
 
 
 def test_root_endpoint():
+    """Returns service info on root endpoint"""
     client = TestClient(app)
     response = client.get("/")
     assert response.status_code == 200
@@ -179,6 +186,7 @@ def test_root_endpoint():
 
 
 def test_text_to_speech(monkeypatch):
+    """Converts text to speech using gTTS"""
     class DummyTTS:
         def __init__(self, text, lang="de"):
             self.text = text
@@ -193,6 +201,7 @@ def test_text_to_speech(monkeypatch):
 
 
 def test_twilio_recording(monkeypatch, tmp_data_dir):
+    """Processes a Twilio recording webhook"""
     monkeypatch.setattr(telephony, "download_recording", lambda url: b"audio")
     monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: "transcript")
     monkeypatch.setattr(telephony, "transcribe_audio", lambda b: "transcript")
@@ -222,6 +231,7 @@ def test_twilio_recording(monkeypatch, tmp_data_dir):
 
 
 def test_sipgate_recording(monkeypatch, tmp_data_dir):
+    """Processes a sipgate recording webhook"""
     monkeypatch.setattr(app_settings.settings, "telephony_provider", "sipgate")
     import importlib
     telephony_mod = importlib.reload(telephony)
@@ -257,6 +267,7 @@ def test_sipgate_recording(monkeypatch, tmp_data_dir):
  
 
 def test_sevdesk_mcp_adapter(monkeypatch):
+    """Sends invoice to sevDesk via MCP"""
     import app.billing_adapters.sevdesk_mcp as sevdesk_mcp
     adapter = sevdesk_mcp.SevDeskMCPAdapter()
     called = {}
