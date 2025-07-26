@@ -105,3 +105,19 @@ uvicorn app.main:app --reload
 pytest
 ```
 
+## Deployment auf Render
+
+Für eine kostengünstige Bereitstellung bietet [Render](https://render.com)
+einen kostenlosen Tarif, der für kleinere Projekte ausreicht. Die
+Anwendung lässt sich dank Dockerfile einfach deployen:
+
+1. Bei Render registrieren und das Repository verknüpfen.
+2. Beim Erstellen eines neuen **Web Service** die Option "Docker"
+   wählen. Render erkennt die Datei `render.yaml` automatisch.
+3. Die in `.env.example` aufgeführten Variablen im Dashboard anlegen.
+4. Nach dem Deploy lauscht die App auf dem von Render vorgegebenen
+   Port (`$PORT`). Der Dockerfile wurde entsprechend angepasst.
+
+Damit läuft der Sprachassistent günstig in der Cloud und kann über die
+öffentliche URL von Render erreicht werden.
+
