@@ -195,8 +195,28 @@ def test_text_to_speech(monkeypatch):
         def write_to_fp(self, fp):
             fp.write(b"mp3")
 
+    monkeypatch.setattr(tts.settings, "tts_provider", "gtts")
     monkeypatch.setattr(tts, "gTTS", DummyTTS)
     result = tts.text_to_speech("hallo")
+    assert result == b"mp3"
+
+
+def test_text_to_speech_elevenlabs(monkeypatch):
+    """Converts text using ElevenLabs"""
+
+    monkeypatch.setattr(tts.settings, "tts_provider", "elevenlabs")
+    monkeypatch.setattr(tts.settings, "elevenlabs_api_key", "k")
+
+    class DummyClient:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+            self.text_to_speech = self
+
+        def convert(self, *args, **kwargs):
+            return [b"mp3"]
+
+    monkeypatch.setattr(tts, "ElevenLabs", DummyClient)
+    result = tts.text_to_speech("hi")
     assert result == b"mp3"
 
 

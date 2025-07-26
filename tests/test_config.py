@@ -56,6 +56,15 @@ def test_invalid_llm_provider(monkeypatch):
         llm_agent._select_provider()
 
 
+def test_invalid_tts_provider(monkeypatch):
+    """Rejects invalid TTS provider configuration"""
+    from app import tts
+    monkeypatch.setattr(app_settings.settings, "tts_provider", "foo")
+    importlib.reload(tts)
+    with pytest.raises(ValueError):
+        tts._select_provider()
+
+
 def test_twilio_voice_endpoint(monkeypatch):
     """Returns XML for Twilio voice webhooks"""
     monkeypatch.setattr(app_settings.settings, "telephony_provider", "twilio")
