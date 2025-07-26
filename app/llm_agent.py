@@ -66,12 +66,18 @@ Text: "{transcript}"
 Nur JSON antworten."""
 
 
+_LLM_PROVIDERS: dict[str, type[LLMProvider]] = {
+    "openai": OpenAIProvider,
+    "ollama": OllamaProvider,
+}
+
+
 def _select_provider() -> LLMProvider:
-    if settings.llm_provider == "openai":
-        return OpenAIProvider()
-    if settings.llm_provider == "ollama":
-        return OllamaProvider()
-    raise ValueError(f"Unsupported LLM_PROVIDER {settings.llm_provider}")
+    try:
+        provider_cls = _LLM_PROVIDERS[settings.llm_provider]
+    except KeyError:  # pragma: no cover - configuration error
+        raise ValueError(f"Unsupported LLM_PROVIDER {settings.llm_provider}")
+    return provider_cls()
 
 
 def extract_invoice_context(transcript: str) -> str:

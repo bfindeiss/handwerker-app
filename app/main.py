@@ -38,7 +38,7 @@ async def process_audio(file: UploadFile = File(...)):
     log_dir = store_interaction(audio_bytes, transcript, invoice)
     return {
         "transcript": transcript,
-        "invoice": invoice.dict(),
+        "invoice": invoice.model_dump(),
         "billing_result": result,
         "log_dir": log_dir,
     }

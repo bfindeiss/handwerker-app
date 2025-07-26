@@ -46,12 +46,18 @@ class ElevenLabsProvider(TTSProvider):
         return b"".join(audio_iter)
 
 
+_TTS_PROVIDERS: dict[str, type[TTSProvider]] = {
+    "gtts": GTTSProvider,
+    "elevenlabs": ElevenLabsProvider,
+}
+
+
 def _select_provider() -> TTSProvider:
-    if settings.tts_provider == "gtts":
-        return GTTSProvider()
-    if settings.tts_provider == "elevenlabs":
-        return ElevenLabsProvider()
-    raise ValueError(f"Unsupported TTS_PROVIDER {settings.tts_provider}")
+    try:
+        provider_cls = _TTS_PROVIDERS[settings.tts_provider]
+    except KeyError:  # pragma: no cover - configuration error
+        raise ValueError(f"Unsupported TTS_PROVIDER {settings.tts_provider}")
+    return provider_cls()
 
 
 def text_to_speech(text: str, lang: str = "de") -> bytes:
