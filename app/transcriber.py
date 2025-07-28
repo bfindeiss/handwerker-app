@@ -9,6 +9,7 @@ import shlex
 import subprocess
 import tempfile
 from openai import OpenAI
+import whisper
 
 from app.settings import settings
 
@@ -52,9 +53,29 @@ class CommandTranscriber(STTProvider):
         return result.stdout.strip()
 
 
+class WhisperTranscriber(STTProvider):
+    """Use the local whisper package for transcription."""
+
+    _model_cache: dict[str, "whisper.Whisper"] = {}
+
+    def __init__(self) -> None:
+        if settings.stt_model not in self._model_cache:
+            self._model_cache[settings.stt_model] = whisper.load_model(settings.stt_model)
+        self.model = self._model_cache[settings.stt_model]
+
+    def transcribe(self, audio_bytes: bytes) -> str:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            tmp.write(audio_bytes)
+            tmp.flush()
+            result = self.model.transcribe(tmp.name)
+        os.unlink(tmp.name)
+        return result.get("text", "").strip()
+
+
 _STT_PROVIDERS: dict[str, type[STTProvider]] = {
     "openai": OpenAITranscriber,
     "command": CommandTranscriber,
+    "whisper": WhisperTranscriber,
 }
 
 

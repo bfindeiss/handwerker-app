@@ -9,3 +9,4 @@ gtts
 requests
 pytest
 elevenlabs
+openai-whisper
