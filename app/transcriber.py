@@ -9,7 +9,6 @@ import shlex
 import subprocess
 import tempfile
 from openai import OpenAI
-import whisper
 
 from app.settings import settings
 
@@ -59,6 +58,9 @@ class WhisperTranscriber(STTProvider):
     _model_cache: dict[str, "whisper.Whisper"] = {}
 
     def __init__(self) -> None:
+        # Lazy import to avoid mandatory dependency during test runs
+        import whisper  # type: ignore
+
         if settings.stt_model not in self._model_cache:
             self._model_cache[settings.stt_model] = whisper.load_model(settings.stt_model)
         self.model = self._model_cache[settings.stt_model]

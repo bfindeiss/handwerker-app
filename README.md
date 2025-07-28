@@ -99,6 +99,7 @@ Bei Bedarf lassen sich die Befehle auch manuell ausführen:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# numpy ist erforderlich, wenn STT_PROVIDER=whisper verwendet wird
 cp .env.example .env
 ollama serve &
 export LLM_PROVIDER=ollama
