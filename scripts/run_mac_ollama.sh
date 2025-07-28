@@ -15,6 +15,12 @@ if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
+# Lokale Provider verwenden
+export LLM_PROVIDER=ollama
+export LLM_MODEL=${LLM_MODEL:-mistral}
+export STT_PROVIDER=whisper
+export STT_MODEL=${STT_MODEL:-base}
+
 # Ollama-Server im Hintergrund starten
 ollama serve &
 OLLAMA_PID=$!

@@ -9,18 +9,19 @@ wird. Es wird automatisch über die `requirements.txt` mitinstalliert.
 pip install -r requirements.txt
 # installiert auch uvicorn, den ASGI-Server für FastAPI
 # alternativ: pip install uvicorn
-cp .env.example .env  # OPENAI_API_KEY setzen
+cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 # optional: BILLING_ADAPTER=app.billing_adapters.simple:SimpleAdapter
 # bei Anbindung an sevDesk per MCP:
 # BILLING_ADAPTER=app.billing_adapters.sevdesk_mcp:SevDeskMCPAdapter
 # MCP_ENDPOINT=http://localhost:8001
-# LLM_PROVIDER=openai|ollama
-# LLM_MODEL=gpt-4o
-# STT_PROVIDER=openai|command
-# STT_MODEL=whisper-1
+# LLM_PROVIDER=ollama|openai
+# LLM_MODEL=mistral
+# STT_PROVIDER=whisper|openai|command
+# STT_MODEL=base
 # TELEPHONY_PROVIDER=twilio|sipgate
 # TTS_PROVIDER=gtts|elevenlabs
 uvicorn app.main:app --reload
+# Weboberfläche anschließend unter http://localhost:8000/web
 ```
 
 ## Telefonie konfigurieren
@@ -98,8 +99,10 @@ Bei Bedarf lassen sich die Befehle auch manuell ausführen:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env # OPENAI_API_KEY anpassen
+cp .env.example .env
 ollama serve &
+export LLM_PROVIDER=ollama
+export STT_PROVIDER=whisper
 uvicorn app.main:app --reload
 ```
 
