@@ -17,7 +17,7 @@ fi
 
 # Lokale Provider verwenden
 export LLM_PROVIDER=ollama
-export LLM_MODEL=${LLM_MODEL:-mistral}
+export LLM_MODEL=${LLM_MODEL:-mistral}  # "llama3" oder "orca2" funktionieren ebenfalls
 export STT_PROVIDER=whisper
 export STT_MODEL=${STT_MODEL:-base}
 
