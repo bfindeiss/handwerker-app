@@ -61,8 +61,24 @@ class WhisperTranscriber(STTProvider):
         # Lazy import to avoid mandatory dependency during test runs
         import whisper  # type: ignore
 
+        try:
+            import numpy  # noqa: F401
+        except Exception as exc:  # pragma: no cover - environment issue
+            raise RuntimeError(
+                "WhisperTranscriber requires NumPy. Install it with 'pip install numpy'."
+            ) from exc
+
         if settings.stt_model not in self._model_cache:
-            self._model_cache[settings.stt_model] = whisper.load_model(settings.stt_model)
+            try:
+                self._model_cache[settings.stt_model] = whisper.load_model(
+                    settings.stt_model
+                )
+            except RuntimeError as exc:  # pragma: no cover - environment issue
+                if "Numpy is not available" in str(exc):
+                    raise RuntimeError(
+                        "WhisperTranscriber requires NumPy. Install it with 'pip install numpy'."
+                    ) from exc
+                raise
         self.model = self._model_cache[settings.stt_model]
 
     def transcribe(self, audio_bytes: bytes) -> str:
@@ -93,4 +109,3 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     """Transcribe audio using the configured provider."""
     provider = _select_provider()
     return provider.transcribe(audio_bytes)
-
