@@ -144,3 +144,19 @@ OpenAI-Provider. Achte darauf, deinen `OPENAI_API_KEY` in der `.env`
 zu hinterlegen. Danach ist die Weboberfläche unter
 `http://localhost:8000/web` erreichbar und es lassen sich wie gewohnt
 Audioaufnahmen hochladen.
+
+## Fehlerbehebung
+
+### "Numpy is not available"
+
+Beim Einsatz des lokalen Whisper-Modells (``STT_PROVIDER=whisper``) muss
+``numpy`` installiert sein. Erscheint beim Start die Meldung
+``RuntimeError: Numpy is not available``, fehlt das Paket in der aktuellen
+Umgebung. Installiere es nachträglich mit:
+
+```bash
+pip install numpy
+```
+
+Alternativ kann ``STT_PROVIDER=openai`` gesetzt werden, um das Whisper-Modell
+von OpenAI zu verwenden, das ohne lokales ``numpy`` auskommt.
