@@ -18,7 +18,23 @@ fi
 # Lokale Provider verwenden
 export LLM_PROVIDER=ollama
 export LLM_MODEL=${LLM_MODEL:-mistral}  # "llama3" oder "orca2" funktionieren ebenfalls
-export STT_PROVIDER=whisper
+
+# STT_PROVIDER auf "whisper" setzen, falls nicht anders angegeben.
+STT_PROVIDER_DEFAULT=${STT_PROVIDER:-whisper}
+
+# Falls "whisper" gewählt ist und NumPy fehlt, zum OpenAI-Provider wechseln.
+if [ "$STT_PROVIDER_DEFAULT" = "whisper" ]; then
+    if ! python3 - <<'EOF' >/dev/null 2>&1
+import importlib.util, sys
+sys.exit(0 if importlib.util.find_spec("numpy") else 1)
+EOF
+    then
+        echo "NumPy nicht gefunden, STT_PROVIDER=openai wird verwendet." >&2
+        STT_PROVIDER_DEFAULT="openai"
+    fi
+fi
+
+export STT_PROVIDER=$STT_PROVIDER_DEFAULT
 export STT_MODEL=${STT_MODEL:-base}
 
 # Ollama-Server im Hintergrund starten

@@ -93,13 +93,16 @@ bash scripts/run_mac_ollama.sh
 Das Skript erstellt ein virtuelles Python-Environment, installiert die
 Abhängigkeiten, kopiert bei Bedarf die Beispielkonfiguration und startet
 anschließend den Ollama-Server sowie die FastAPI-Anwendung.
+Fehlt NumPy, setzt das Skript automatisch `STT_PROVIDER=openai`.
 Bei Bedarf lassen sich die Befehle auch manuell ausführen:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# numpy ist erforderlich, wenn STT_PROVIDER=whisper verwendet wird
+# NumPy ist erforderlich, wenn STT_PROVIDER=whisper verwendet wird.
+# Das Startskript wechselt bei fehlendem NumPy automatisch zu
+# STT_PROVIDER=openai.
 cp .env.example .env
 ollama serve &
 export LLM_PROVIDER=ollama
@@ -159,4 +162,6 @@ pip install numpy
 ```
 
 Alternativ kann ``STT_PROVIDER=openai`` gesetzt werden, um das Whisper-Modell
-von OpenAI zu verwenden, das ohne lokales ``numpy`` auskommt.
+von OpenAI zu verwenden, das ohne lokales ``numpy`` auskommt. Wird das
+Startskript verwendet und NumPy fehlt, erfolgt dieser Wechsel inzwischen
+automatisch.
