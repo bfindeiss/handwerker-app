@@ -106,3 +106,24 @@ def test_store_interaction_unique_dirs(monkeypatch, tmp_path):
     dir2 = persistence.store_interaction(b"b", "t", invoice)
     assert dir1 != dir2
 
+
+def test_fallback_to_openai_when_numpy_missing(monkeypatch):
+    """Uses OpenAI STT if NumPy is not installed for Whisper."""
+    import importlib
+    import importlib.util
+    from app import transcriber
+
+    monkeypatch.setattr(app_settings.settings, "stt_provider", "whisper")
+
+    orig_find_spec = importlib.util.find_spec
+
+    def fake_find_spec(name, *args, **kwargs):
+        if name == "numpy":
+            return None
+        return orig_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+    importlib.reload(transcriber)
+    provider = transcriber._select_provider()
+    assert isinstance(provider, transcriber.OpenAITranscriber)
+
