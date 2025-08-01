@@ -17,6 +17,8 @@ cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 # LLM_PROVIDER=ollama|openai
 # LLM_MODEL=mistral  # alternativ: llama3, orca2, deepseek-r1
 # STT_PROVIDER=whisper|openai|command
+# Für whisper/command muss ffmpeg als System-Binary installiert sein
+# z.B. "brew install ffmpeg" (macOS) oder "sudo apt install ffmpeg" (Ubuntu)
 # STT_MODEL=base
 # TELEPHONY_PROVIDER=twilio|sipgate
 # TTS_PROVIDER=gtts|elevenlabs
@@ -149,6 +151,14 @@ zu hinterlegen. Danach ist die Weboberfläche unter
 Audioaufnahmen hochladen.
 
 ## Fehlerbehebung
+
+### "WhisperTranscriber requires ffmpeg"
+
+Beim lokalen Whisper-Modell (``STT_PROVIDER=whisper``) muss das Programm
+``ffmpeg`` installiert und im ``PATH`` verfügbar sein. Installiere es bei Bedarf
+über ``brew install ffmpeg`` (macOS) oder ``sudo apt install ffmpeg`` (Ubuntu).
+Alternativ kann ``STT_PROVIDER=openai`` gesetzt werden, um den Cloud-Dienst
+ohne lokales ``ffmpeg`` zu nutzen.
 
 ### "Numpy is not available"
 
