@@ -165,3 +165,14 @@ Alternativ kann ``STT_PROVIDER=openai`` gesetzt werden, um das Whisper-Modell
 von OpenAI zu verwenden, das ohne lokales ``numpy`` auskommt. Wird das
 Startskript verwendet und NumPy fehlt, erfolgt dieser Wechsel inzwischen
 automatisch.
+
+### "A module that was compiled using NumPy 1.x cannot be run"
+
+Diese Warnung deutet auf eine inkompatible Kombination von Paketen hin.
+Ein Modul wurde mit einer NumPy-1.x-Version erstellt, in der aktuellen
+Umgebung ist jedoch NumPy 2 installiert. Aktualisiere das betroffene
+Paket oder setze NumPy auf eine 1.x-Version zurück:
+
+```bash
+pip install "numpy<2"
+```
