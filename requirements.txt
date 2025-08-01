@@ -10,5 +10,4 @@ requests
 pytest
 elevenlabs
 openai-whisper
-ffmpeg
 numpy
