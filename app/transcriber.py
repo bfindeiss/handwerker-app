@@ -69,6 +69,13 @@ class WhisperTranscriber(STTProvider):
                 "or set STT_PROVIDER=openai."
             ) from exc
 
+        import shutil
+        if shutil.which("ffmpeg") is None:  # pragma: no cover - environment issue
+            raise RuntimeError(
+                "WhisperTranscriber requires ffmpeg. Install it and try again "
+                "or set STT_PROVIDER=openai."
+            )
+
         if settings.stt_model not in self._model_cache:
             try:
                 self._model_cache[settings.stt_model] = whisper.load_model(
@@ -100,21 +107,8 @@ _STT_PROVIDERS: dict[str, type[STTProvider]] = {
 
 
 def _select_provider() -> STTProvider:
-    """Return the configured speech-to-text provider.
-
-    Falls das lokale Whisper-Modell aktiviert ist, NumPy aber nicht
-    installiert wurde, wird automatisch auf den OpenAI-Provider
-    ausgewichen. Dadurch startet die Anwendung auch ohne manuelle
-    Anpassung der ``STT_PROVIDER``-Variable.
-    """
+    """Return the configured speech-to-text provider."""
     provider_name = settings.stt_provider
-    if provider_name == "whisper":
-        import importlib.util
-
-        if importlib.util.find_spec("numpy") is None:  # pragma: no cover - env issue
-            # NumPy fehlt, daher auf OpenAI wechseln
-            provider_name = "openai"
-
     try:
         provider_cls = _STT_PROVIDERS[provider_name]
     except KeyError:  # pragma: no cover - configuration error
