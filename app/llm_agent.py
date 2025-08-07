@@ -48,6 +48,17 @@ class OllamaProvider(LLMProvider):
             json={"model": settings.llm_model, "prompt": prompt, "stream": False},
             timeout=60,
         )
+        if resp.status_code == 404:
+            # Ollama returns 404 when the model is unknown or not pulled yet.
+            # Surface a clearer error message so users know how to resolve it.
+            try:
+                detail = resp.json().get("error", "model not found")
+            except Exception:  # pragma: no cover - invalid JSON
+                detail = "model not found"
+            raise RuntimeError(
+                f"Ollama model '{settings.llm_model}' unavailable: {detail}"
+            )
+
         resp.raise_for_status()
         return resp.json().get("response", "")
 
