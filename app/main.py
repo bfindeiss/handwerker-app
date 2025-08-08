@@ -1,13 +1,12 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.transcriber import transcribe_audio
 from app.llm_agent import extract_invoice_context
 from app.billing_adapter import send_to_billing_system
 from app.persistence import store_interaction
-from app.models import InvoiceContext
+from app.models import parse_invoice_context
 from app.telephony import router as telephony_router
-import json
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -33,7 +32,10 @@ async def process_audio(file: UploadFile = File(...)):
     audio_bytes = await file.read()
     transcript = transcribe_audio(audio_bytes)
     invoice_json = extract_invoice_context(transcript)
-    invoice = InvoiceContext(**json.loads(invoice_json))
+    try:
+        invoice = parse_invoice_context(invoice_json)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
     result = send_to_billing_system(invoice)
     log_dir = store_interaction(audio_bytes, transcript, invoice)
     return {
