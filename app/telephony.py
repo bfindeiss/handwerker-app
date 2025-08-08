@@ -1,12 +1,11 @@
 from pathlib import Path
 from fastapi import APIRouter, Request, BackgroundTasks, Response
 import requests
-import json
 from app.transcriber import transcribe_audio
 from app.llm_agent import extract_invoice_context
 from app.billing_adapter import send_to_billing_system
 from app.persistence import store_interaction
-from app.models import InvoiceContext
+from app.models import parse_invoice_context
 from app.tts import text_to_speech
 from app.settings import settings
 
@@ -25,7 +24,7 @@ def download_recording(url: str) -> bytes:
 def _handle_recording(audio_bytes: bytes, background_tasks: BackgroundTasks) -> None:
     transcript = transcribe_audio(audio_bytes)
     invoice_json = extract_invoice_context(transcript)
-    invoice = InvoiceContext(**json.loads(invoice_json))
+    invoice = parse_invoice_context(invoice_json)
     send_to_billing_system(invoice)
     log_dir = store_interaction(audio_bytes, transcript, invoice)
 

@@ -191,6 +191,22 @@ def test_process_audio(monkeypatch, tmp_data_dir):
     assert data["billing_result"] == {"ok": True}
 
 
+def test_process_audio_invalid_invoice(monkeypatch):
+    """Returns error when LLM response is empty."""
+    monkeypatch.setattr(transcriber, "transcribe_audio", lambda x: "t")
+    monkeypatch.setattr(app_main, "transcribe_audio", lambda x: "t")
+    monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: "")
+    monkeypatch.setattr(app_main, "extract_invoice_context", lambda t: "")
+
+    client = TestClient(app)
+    response = client.post(
+        "/process-audio/",
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert response.status_code == 502
+    assert "invoice context" in response.json()["detail"]
+
+
 def test_root_endpoint():
     """Returns service info on root endpoint"""
     client = TestClient(app)
