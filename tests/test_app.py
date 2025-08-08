@@ -115,6 +115,8 @@ def test_extract_invoice_context_ollama(monkeypatch):
 
     def fake_post(url, json=None, timeout=60):
         class Resp:
+            status_code = 200
+
             def raise_for_status(self):
                 pass
 
@@ -126,6 +128,26 @@ def test_extract_invoice_context_ollama(monkeypatch):
     monkeypatch.setattr(llm_agent.requests, "post", fake_post)
     result = llm_agent.extract_invoice_context("text")
     assert json.loads(result)["type"] == "InvoiceContext"
+
+
+def test_extract_invoice_context_ollama_model_missing(monkeypatch):
+    """Returns a helpful error when Ollama model is missing"""
+    monkeypatch.setattr(llm_agent.settings, "llm_provider", "ollama")
+    monkeypatch.setattr(llm_agent.settings, "llm_model", "missing")
+
+    class Resp:
+        status_code = 404
+
+        def json(self):
+            return {"error": "model not found"}
+
+    def fake_post(url, json=None, timeout=60):
+        return Resp()
+
+    monkeypatch.setattr(llm_agent.requests, "post", fake_post)
+    with pytest.raises(RuntimeError) as exc:
+        llm_agent.extract_invoice_context("text")
+    assert "model not found" in str(exc.value)
 
 
 def test_store_interaction(tmp_data_dir):
