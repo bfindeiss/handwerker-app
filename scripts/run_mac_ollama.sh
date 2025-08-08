@@ -17,7 +17,7 @@ fi
 
 # Lokale Provider verwenden
 export LLM_PROVIDER=ollama
-export LLM_MODEL=${LLM_MODEL:-mistral}  # "llama3" oder "orca2" funktionieren ebenfalls
+export LLM_MODEL=${LLM_MODEL:-deepseek-r1:latest}  # "mistral", "llama3" oder "orca2" funktionieren ebenfalls
 
 # STT_PROVIDER auf "whisper" setzen, falls nicht anders angegeben.
 STT_PROVIDER_DEFAULT=${STT_PROVIDER:-whisper}
