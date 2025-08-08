@@ -15,7 +15,7 @@ cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 # BILLING_ADAPTER=app.billing_adapters.sevdesk_mcp:SevDeskMCPAdapter
 # MCP_ENDPOINT=http://localhost:8001
 # LLM_PROVIDER=ollama|openai
-# LLM_MODEL=mistral  # alternativ: llama3, orca2, deepseek-r1
+# LLM_MODEL=deepseek-r1:latest  # alternativ: llama3, orca2, mistral
 # STT_PROVIDER=whisper|openai|command
 # Für whisper/command muss ffmpeg als System-Binary installiert sein
 # z.B. "brew install ffmpeg" (macOS) oder "sudo apt install ffmpeg" (Ubuntu)
@@ -73,9 +73,9 @@ ollama serve &
 Dann in der `.env` folgende Einstellungen setzen:
 ```bash
 LLM_PROVIDER=ollama
-LLM_MODEL=mistral
+LLM_MODEL=deepseek-r1:latest
 ```
-Das kompakte Modell `mistral` (z.B. `mistral:latest`) liefert gute Ergebnisse bei geringem Ressourcenverbrauch und eignet sich daher besonders für dieses Projekt. Größere Modelle wie `llama3:latest`, `deepseek-r1:latest` oder `orca2:latest` sind ebenfalls nutzbar, benötigen aber deutlich mehr Ressourcen.
+Das Modell `deepseek-r1:latest` liefert leistungsfähige Ergebnisse. Kleinere Modelle wie `mistral:latest`, `llama3:latest` oder `orca2:latest` funktionieren ebenfalls und benötigen weniger Ressourcen.
 `OLLAMA_BASE_URL` kann bei Bedarf angepasst werden. Danach wie gewohnt `uvicorn` starten und Anfragen an `/process-audio/` senden.
 
 ## MacBook Pro: Lokale Ausführung mit Ollama
