@@ -251,21 +251,27 @@ def test_text_to_speech_elevenlabs(monkeypatch):
     assert result == b"mp3"
 
 
-def test_twilio_recording(monkeypatch, tmp_data_dir):
-    """Processes a Twilio recording webhook"""
+def test_twilio_recording_followup(monkeypatch, tmp_data_dir):
+    """Asks follow-up questions until invoice is complete."""
+    telephony.SESSIONS.clear()
     monkeypatch.setattr(telephony, "download_recording", lambda url: b"audio")
-    monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: "transcript")
-    monkeypatch.setattr(telephony, "transcribe_audio", lambda b: "transcript")
-    dummy_json = json.dumps(
-        {
-            "type": "InvoiceContext",
-            "customer": {"name": "Hans"},
-            "service": {"description": "test", "materialIncluded": True},
-            "amount": {"total": 100.0, "currency": "EUR"},
-        }
-    )
-    monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
-    monkeypatch.setattr(telephony, "extract_invoice_context", lambda t: dummy_json)
+
+    transcripts = iter(["", "Hans Malen 100"])
+    monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: next(transcripts))
+    monkeypatch.setattr(telephony, "transcribe_audio", lambda b: next(transcripts))
+
+    def fake_extract(text):
+        data = {"type": "InvoiceContext", "customer": {}, "service": {}, "amount": {}}
+        if "Hans" in text:
+            data["customer"] = {"name": "Hans"}
+        if "Malen" in text:
+            data["service"] = {"description": "Malen", "materialIncluded": True}
+        if "100" in text:
+            data["amount"] = {"total": 100.0, "currency": "EUR"}
+        return json.dumps(data)
+
+    monkeypatch.setattr(llm_agent, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(telephony, "extract_invoice_context", fake_extract)
     monkeypatch.setattr(billing_adapter, "send_to_billing_system", lambda i: {"ok": True})
     monkeypatch.setattr(telephony, "send_to_billing_system", lambda i: {"ok": True})
     monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir))
@@ -274,11 +280,18 @@ def test_twilio_recording(monkeypatch, tmp_data_dir):
     monkeypatch.setattr(telephony, "text_to_speech", lambda t: b"mp3")
 
     client = TestClient(app)
+    call_sid = "abc"
     response = client.post(
         "/twilio/recording",
-        data={"RecordingUrl": "http://example.com/audio"},
+        data={"RecordingUrl": "http://example.com/audio", "CallSid": call_sid},
     )
-    assert response.status_code == 200
+    assert "Wie heißt der Kunde" in response.text
+
+    response = client.post(
+        "/twilio/recording",
+        data={"RecordingUrl": "http://example.com/audio", "CallSid": call_sid},
+    )
+    assert "Ihre Rechnung wurde erstellt" in response.text
 
 
 def test_sipgate_recording(monkeypatch, tmp_data_dir):

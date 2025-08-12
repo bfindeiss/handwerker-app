@@ -33,3 +33,20 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
     except ValidationError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
 
+
+def missing_invoice_fields(invoice: "InvoiceContext") -> list[str]:
+    """Return a list of missing mandatory fields for an invoice.
+
+    The current schema requires a customer name, service description and the
+    total amount. If any of these fields are missing or empty the respective
+    field path is returned, e.g. ``customer.name``.
+    """
+    missing: list[str] = []
+    if not invoice.customer.get("name"):
+        missing.append("customer.name")
+    if not invoice.service.get("description"):
+        missing.append("service.description")
+    if invoice.amount.get("total") in (None, ""):
+        missing.append("amount.total")
+    return missing
+

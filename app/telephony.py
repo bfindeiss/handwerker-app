@@ -5,7 +5,7 @@ from app.transcriber import transcribe_audio
 from app.llm_agent import extract_invoice_context
 from app.billing_adapter import send_to_billing_system
 from app.persistence import store_interaction
-from app.models import parse_invoice_context
+from app.models import parse_invoice_context, missing_invoice_fields
 from app.tts import text_to_speech
 from app.settings import settings
 
@@ -14,6 +14,10 @@ router = APIRouter()
 RECORDINGS_DIR = Path("recordings")
 RECORDINGS_DIR.mkdir(exist_ok=True)
 
+# In-memory sessions to accumulate transcripts for follow-up questions when using
+# providers that support an interactive dialog (currently Twilio).
+SESSIONS: dict[str, str] = {}
+
 
 def download_recording(url: str) -> bytes:
     resp = requests.get(url)
@@ -21,14 +25,12 @@ def download_recording(url: str) -> bytes:
     return resp.content
 
 
-def _handle_recording(audio_bytes: bytes, background_tasks: BackgroundTasks) -> None:
-    transcript = transcribe_audio(audio_bytes)
-    invoice_json = extract_invoice_context(transcript)
-    invoice = parse_invoice_context(invoice_json)
+def _finalize(audio_bytes: bytes, transcript: str, invoice: "InvoiceContext", background_tasks: BackgroundTasks) -> None:
+    """Send invoice to billing system and persist artefacts."""
     send_to_billing_system(invoice)
     log_dir = store_interaction(audio_bytes, transcript, invoice)
 
-    def tts_and_store():
+    def tts_and_store() -> None:
         speech_bytes = text_to_speech(
             f"Die Rechnung für {invoice.customer['name']} über {invoice.amount['total']} Euro wurde erstellt."
         )
@@ -53,7 +55,18 @@ if settings.telephony_provider == "sipgate":
         if not recording_url:
             return {"error": "Keine Aufnahme erhalten."}
         audio_bytes = download_recording(recording_url)
-        _handle_recording(audio_bytes, background_tasks)
+        # Sipgate does not support an interactive session in this simplified
+        # example; therefore we attempt to create the invoice in a single step
+        # and return an error message if mandatory fields are missing.
+        transcript = transcribe_audio(audio_bytes)
+        invoice_json = extract_invoice_context(transcript)
+        try:
+            invoice = parse_invoice_context(invoice_json)
+        except ValueError:
+            return {"error": "Ungültiger Rechnungsinhalt"}
+        if missing_invoice_fields(invoice):
+            return {"error": "Unvollständige Rechnungsdaten"}
+        _finalize(audio_bytes, transcript, invoice, background_tasks)
         return {"status": "ok"}
 
 else:
@@ -77,16 +90,50 @@ else:
 
     @router.post("/twilio/recording")
     async def twilio_recording(request: Request, background_tasks: BackgroundTasks):
-        """Handle recording callback from Twilio."""
+        """Handle recording callback from Twilio with follow-up questions."""
         form = await request.form()
         recording_url = form.get("RecordingUrl")
-        if not recording_url:
+        call_sid = form.get("CallSid")
+        if not recording_url or not call_sid:
             vr = VoiceResponse()
             vr.say("Keine Aufnahme erhalten.", language="de-DE")
             return Response(content=str(vr), media_type="application/xml")
 
         audio_bytes = download_recording(recording_url + ".wav")
-        _handle_recording(audio_bytes, background_tasks)
+        transcript_part = transcribe_audio(audio_bytes)
+        full_transcript = (SESSIONS.get(call_sid, "") + " " + transcript_part).strip()
+        SESSIONS[call_sid] = full_transcript
+
+        invoice_json = extract_invoice_context(full_transcript)
+        try:
+            invoice = parse_invoice_context(invoice_json)
+        except ValueError:
+            missing = [
+                "Bitte nennen Sie den Kundennamen, die Dienstleistung und den Betrag."
+            ]
+        else:
+            missing = missing_invoice_fields(invoice)
+
+        if missing:
+            question_map = {
+                "customer.name": "Wie heißt der Kunde?",
+                "service.description": "Welche Dienstleistung wurde erbracht?",
+                "amount.total": "Wie hoch ist der Gesamtbetrag?",
+            }
+            question = question_map.get(missing[0], missing[0])
+            vr = VoiceResponse()
+            vr.say(question, language="de-DE")
+            vr.record(
+                max_length=60,
+                action=str(request.url_for("twilio_recording")),
+                play_beep=True,
+                finish_on_key="#",
+            )
+            return Response(content=str(vr), media_type="application/xml")
+
+        # All data available; finalize invoice and end session
+        _finalize(audio_bytes, full_transcript, invoice, background_tasks)
+        del SESSIONS[call_sid]
         vr = VoiceResponse()
         vr.say("Vielen Dank. Ihre Rechnung wurde erstellt.", language="de-DE")
         return Response(content=str(vr), media_type="application/xml")
