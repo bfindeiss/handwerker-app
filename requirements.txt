@@ -8,6 +8,7 @@ twilio
 gtts
 requests
 pytest
+pytest-cov
 elevenlabs
 openai-whisper
 numpy

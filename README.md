@@ -1,5 +1,7 @@
 # Sprachassistent für Handwerker
 
+[![codecov](https://codecov.io/gh/OWNER/handwerker-app/branch/main/graph/badge.svg)](https://codecov.io/gh/OWNER/handwerker-app)
+
 Ein FastAPI-basiertes Backend, das Sprache in strukturierte Rechnungsdaten umwandelt und diese an ein Rechnungssystem weiterreicht.
 
 ## Inhaltsverzeichnis
