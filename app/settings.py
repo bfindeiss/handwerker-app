@@ -14,5 +14,6 @@ class Settings:
     telephony_provider: str = os.getenv('TELEPHONY_PROVIDER', 'twilio')
     tts_provider: str = os.getenv('TTS_PROVIDER', 'gtts')
     elevenlabs_api_key: str | None = os.getenv('ELEVENLABS_API_KEY')
+    fail_on_llm_unavailable: bool = os.getenv('FAIL_ON_LLM_UNAVAILABLE', '0') == '1'
 
 settings = Settings()
