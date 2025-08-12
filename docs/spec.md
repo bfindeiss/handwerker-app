@@ -46,6 +46,11 @@ Entwicklung eines modularen Sprachassistenzsystems, das Telefongespräche mit Ha
   - Revisionssicheres Logging (z. B. Audit-Trail)
   - Optionale Langzeitspeicherung / Archivierung (DSGVO-konform)
 
+### E-Rechnung nach EN 16931
+- Elektronische Rechnungen müssen dem europäischen Standard EN 16931 entsprechen, z. B. in den Formaten ZUGFeRD/Factur-X oder XRechnung.
+- XRechnung ist ein deutsches Profil und ein Teilmengenstandard von EN 16931.
+- Jede Rechnung enthält strukturierte Positionen (Material, Anfahrt, Arbeitszeit) mit Preisen und Steuersätzen.
+
 ---
 
 ## Beispiel-Ablauf
@@ -66,6 +71,30 @@ Entwicklung eines modularen Sprachassistenzsystems, das Telefongespräche mit Ha
     "description": "Badezimmer renoviert",
     "materialIncluded": true
   },
+  "items": [
+    {
+      "description": "Fliesen",
+      "category": "material",
+      "quantity": 20,
+      "unit": "m²",
+      "unit_price": 50
+    },
+    {
+      "description": "Anfahrt",
+      "category": "travel",
+      "quantity": 30,
+      "unit": "km",
+      "unit_price": 0.5
+    },
+    {
+      "description": "Arbeitszeit Meister",
+      "category": "labor",
+      "quantity": 10,
+      "unit": "h",
+      "unit_price": 70,
+      "worker_role": "Meister"
+    }
+  ],
   "amount": {
     "total": 3500,
     "currency": "EUR"

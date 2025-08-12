@@ -15,7 +15,13 @@ def test_default_billing_adapter(monkeypatch):
     """Uses default adapter when none specified"""
     monkeypatch.setattr(app_settings.settings, "billing_adapter", None)
     importlib.reload(billing_adapter)
-    invoice = InvoiceContext(type="InvoiceContext", customer={"name": "Max"}, service={}, amount={})
+    invoice = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": "Max"},
+        service={},
+        items=[],
+        amount={},
+    )
     result = billing_adapter.send_to_billing_system(invoice)
     assert result["status"] == "success"
     assert "Max" in result["message"]
@@ -100,7 +106,13 @@ def test_store_interaction_unique_dirs(monkeypatch, tmp_path):
         def utcnow(cls):
             return datetime(2023, 1, 1, 12, 0, 0)
     monkeypatch.setattr(persistence, "datetime", DummyDT)
-    invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, amount={})
+    invoice = InvoiceContext(
+        type="InvoiceContext",
+        customer={},
+        service={},
+        items=[],
+        amount={},
+    )
     dir1 = persistence.store_interaction(b"a", "t", invoice)
     monkeypatch.setattr(DummyDT, "utcnow", classmethod(lambda cls: datetime(2023, 1, 1, 12, 0, 1)))
     dir2 = persistence.store_interaction(b"b", "t", invoice)
