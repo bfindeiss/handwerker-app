@@ -3,8 +3,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import app.main as app_main
 import json
 from pathlib import Path
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import pytest
+import requests
 
 from app.main import app
 from app import transcriber, llm_agent, billing_adapter, persistence, tts, telephony
@@ -160,6 +162,21 @@ def test_extract_invoice_context_ollama_model_missing(monkeypatch):
     with pytest.raises(RuntimeError) as exc:
         llm_agent.extract_invoice_context("text")
     assert "model not found" in str(exc.value)
+
+
+def test_extract_invoice_context_ollama_unreachable(monkeypatch):
+    """Raises 503 when Ollama server cannot be reached"""
+    monkeypatch.setattr(llm_agent.settings, "llm_provider", "ollama")
+    monkeypatch.setattr(llm_agent.settings, "llm_model", "test")
+
+    def fake_post(url, json=None, timeout=60):
+        raise requests.exceptions.ConnectionError()
+
+    monkeypatch.setattr(llm_agent.requests, "post", fake_post)
+    with pytest.raises(HTTPException) as exc:
+        llm_agent.extract_invoice_context("text")
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Ollama server unreachable"
 
 
 def test_store_interaction(tmp_data_dir):
