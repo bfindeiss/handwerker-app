@@ -1,16 +1,33 @@
+import logging
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
 from app.transcriber import transcribe_audio
-from app.llm_agent import extract_invoice_context
+from app.llm_agent import extract_invoice_context, check_llm_backend
 from app.billing_adapter import send_to_billing_system
 from app.persistence import store_interaction
 from app.models import parse_invoice_context
 from app.telephony import router as telephony_router
+from app.settings import settings
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(telephony_router)
+
+
+@app.on_event("startup")
+def _check_llm_backend() -> None:
+    if not check_llm_backend():
+        msg = (
+            "LLM backend unreachable. "
+            "Consider switching to a fallback provider or set "
+            "FAIL_ON_LLM_UNAVAILABLE=1 to abort startup."
+        )
+        if settings.fail_on_llm_unavailable:
+            raise RuntimeError(msg)
+        logging.warning(msg)
 
 
 @app.get("/")

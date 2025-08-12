@@ -96,3 +96,20 @@ def extract_invoice_context(transcript: str) -> str:
     provider = _select_provider()
     return provider.extract(transcript)
 
+
+def check_llm_backend(timeout: float = 5.0) -> bool:
+    """Ping the configured LLM backend and return ``True`` on success."""
+    try:
+        if settings.llm_provider == "openai":
+            client = OpenAI()
+            # Listing models is a lightweight way to verify connectivity.
+            client.models.list()
+        elif settings.llm_provider == "ollama":
+            url = f"{settings.ollama_base_url.rstrip('/')}/api/tags"
+            requests.get(url, timeout=timeout).raise_for_status()
+        else:  # pragma: no cover - unrecognised provider
+            return True
+    except Exception:
+        return False
+    return True
+
