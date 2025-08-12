@@ -11,6 +11,9 @@ from app.persistence import store_interaction
 from app.models import parse_invoice_context
 from app.telephony import router as telephony_router
 from app.settings import settings
+from app.logging_config import configure_logging
+
+configure_logging()
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -44,6 +47,7 @@ def web_interface():
     """Serve simple HTML interface for recording and uploading audio."""
     return FileResponse("app/static/index.html")
 
+
 @app.post("/process-audio/")
 async def process_audio(file: UploadFile = File(...)):
     audio_bytes = await file.read()
@@ -61,4 +65,3 @@ async def process_audio(file: UploadFile = File(...)):
         "billing_result": result,
         "log_dir": log_dir,
     }
-

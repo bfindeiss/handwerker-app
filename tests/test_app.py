@@ -1,4 +1,6 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import app.main as app_main
 import json
@@ -6,12 +8,15 @@ from pathlib import Path
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import pytest
-import requests
+import httpx
 
 from app.main import app
 from app import transcriber, llm_agent, billing_adapter, persistence, tts, telephony
+import app.telephony.twilio as telephony_twilio
+import app.telephony.common as telephony_common
 from app import settings as app_settings
-from app.models import InvoiceContext, InvoiceItem
+from app.models import InvoiceContext
+
 
 class DummyResponse:
     def __init__(self, text):
@@ -29,6 +34,7 @@ class DummyChatResponse:
 
     def __init__(self, content):
         self.choices = [DummyChatResponse.DummyChoice(content)]
+
 
 class DummyOpenAI:
     def __init__(self, result):
@@ -73,7 +79,6 @@ class DummyOpenAI:
         return DummyOpenAI.Chat(self)
 
 
-
 def test_transcribe_audio(monkeypatch):
     """Transcribes audio using OpenAI STT"""
     monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
@@ -101,13 +106,15 @@ def test_transcribe_audio_command(monkeypatch):
 
 def test_extract_invoice_context(monkeypatch):
     """Extracts invoice context from text via OpenAI LLM"""
-    dummy_json = json.dumps({
-        "type": "InvoiceContext",
-        "customer": {},
-        "service": {},
-        "items": [],
-        "amount": {},
-    })
+    dummy_json = json.dumps(
+        {
+            "type": "InvoiceContext",
+            "customer": {},
+            "service": {},
+            "items": [],
+            "amount": {},
+        }
+    )
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "openai")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "gpt-4o")
     monkeypatch.setattr(llm_agent, "OpenAI", lambda: DummyOpenAI(dummy_json))
@@ -117,13 +124,15 @@ def test_extract_invoice_context(monkeypatch):
 
 def test_extract_invoice_context_ollama(monkeypatch):
     """Extracts invoice context via Ollama LLM"""
-    dummy_json = json.dumps({
-        "type": "InvoiceContext",
-        "customer": {},
-        "service": {},
-        "items": [],
-        "amount": {},
-    })
+    dummy_json = json.dumps(
+        {
+            "type": "InvoiceContext",
+            "customer": {},
+            "service": {},
+            "items": [],
+            "amount": {},
+        }
+    )
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "ollama")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "test")
 
@@ -139,7 +148,7 @@ def test_extract_invoice_context_ollama(monkeypatch):
 
         return Resp()
 
-    monkeypatch.setattr(llm_agent.requests, "post", fake_post)
+    monkeypatch.setattr(llm_agent.httpx, "post", fake_post)
     result = llm_agent.extract_invoice_context("text")
     assert json.loads(result)["type"] == "InvoiceContext"
 
@@ -158,7 +167,7 @@ def test_extract_invoice_context_ollama_model_missing(monkeypatch):
     def fake_post(url, json=None, timeout=60):
         return Resp()
 
-    monkeypatch.setattr(llm_agent.requests, "post", fake_post)
+    monkeypatch.setattr(llm_agent.httpx, "post", fake_post)
     with pytest.raises(RuntimeError) as exc:
         llm_agent.extract_invoice_context("text")
     assert "model not found" in str(exc.value)
@@ -170,9 +179,9 @@ def test_extract_invoice_context_ollama_unreachable(monkeypatch):
     monkeypatch.setattr(llm_agent.settings, "llm_model", "test")
 
     def fake_post(url, json=None, timeout=60):
-        raise requests.exceptions.ConnectionError()
+        raise httpx.RequestError("boom")
 
-    monkeypatch.setattr(llm_agent.requests, "post", fake_post)
+    monkeypatch.setattr(llm_agent.httpx, "post", fake_post)
     with pytest.raises(HTTPException) as exc:
         llm_agent.extract_invoice_context("text")
     assert exc.value.status_code == 503
@@ -219,7 +228,9 @@ def test_process_audio(monkeypatch, tmp_data_dir):
     )
     monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
     monkeypatch.setattr(app_main, "extract_invoice_context", lambda t: dummy_json)
-    monkeypatch.setattr(billing_adapter, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        billing_adapter, "send_to_billing_system", lambda i: {"ok": True}
+    )
     monkeypatch.setattr(app_main, "send_to_billing_system", lambda i: {"ok": True})
     monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: "dir")
     monkeypatch.setattr(app_main, "store_interaction", lambda a, t, i: "dir")
@@ -264,6 +275,7 @@ def test_root_endpoint():
 
 def test_text_to_speech(monkeypatch):
     """Converts text to speech using gTTS"""
+
     class DummyTTS:
         def __init__(self, text, lang="de"):
             self.text = text
@@ -300,11 +312,18 @@ def test_text_to_speech_elevenlabs(monkeypatch):
 def test_twilio_recording_followup(monkeypatch, tmp_data_dir):
     """Asks follow-up questions until invoice is complete."""
     telephony.SESSIONS.clear()
-    monkeypatch.setattr(telephony, "download_recording", lambda url: b"audio")
+
+    async def fake_download(url):
+        return b"audio"
+
+    monkeypatch.setattr(telephony, "download_recording", fake_download)
+    monkeypatch.setattr(telephony_twilio, "download_recording", fake_download)
 
     transcripts = iter(["", "Hans Malen 100"])
     monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: next(transcripts))
-    monkeypatch.setattr(telephony, "transcribe_audio", lambda b: next(transcripts))
+    monkeypatch.setattr(
+        telephony_twilio, "transcribe_audio", lambda b: next(transcripts)
+    )
 
     def fake_extract(text):
         data = {
@@ -333,13 +352,21 @@ def test_twilio_recording_followup(monkeypatch, tmp_data_dir):
         return json.dumps(data)
 
     monkeypatch.setattr(llm_agent, "extract_invoice_context", fake_extract)
-    monkeypatch.setattr(telephony, "extract_invoice_context", fake_extract)
-    monkeypatch.setattr(billing_adapter, "send_to_billing_system", lambda i: {"ok": True})
-    monkeypatch.setattr(telephony, "send_to_billing_system", lambda i: {"ok": True})
-    monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir))
-    monkeypatch.setattr(telephony, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(telephony_twilio, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(
+        billing_adapter, "send_to_billing_system", lambda i: {"ok": True}
+    )
+    monkeypatch.setattr(
+        telephony_common, "send_to_billing_system", lambda i: {"ok": True}
+    )
+    monkeypatch.setattr(
+        persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(
+        telephony_common, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
     monkeypatch.setattr(tts, "text_to_speech", lambda t: b"mp3")
-    monkeypatch.setattr(telephony, "text_to_speech", lambda t: b"mp3")
+    monkeypatch.setattr(telephony_common, "text_to_speech", lambda t: b"mp3")
 
     client = TestClient(app)
     call_sid = "abc"
@@ -360,35 +387,53 @@ def test_sipgate_recording(monkeypatch, tmp_data_dir):
     """Processes a sipgate recording webhook"""
     monkeypatch.setattr(app_settings.settings, "telephony_provider", "sipgate")
     import importlib
-    telephony_mod = importlib.reload(telephony)
 
-    monkeypatch.setattr(telephony_mod, "download_recording", lambda url: b"audio")
+    telephony_mod = importlib.reload(telephony)
+    import app.telephony.sipgate as telephony_sipgate
+
+    async def fake_download(url):
+        return b"audio"
+
+    monkeypatch.setattr(telephony_mod, "download_recording", fake_download)
+    monkeypatch.setattr(telephony_sipgate, "download_recording", fake_download)
     monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: "transcript")
-    monkeypatch.setattr(telephony_mod, "transcribe_audio", lambda b: "transcript")
-    dummy_json = json.dumps({
-        "type": "InvoiceContext",
-        "customer": {"name": "Hans"},
-        "service": {"description": "test", "materialIncluded": True},
-        "items": [
-            {
-                "description": "Arbeitszeit Geselle",
-                "category": "labor",
-                "quantity": 2,
-                "unit": "h",
-                "unit_price": 40,
-                "worker_role": "Geselle",
-            }
-        ],
-        "amount": {"total": 100.0, "currency": "EUR"},
-    })
+    monkeypatch.setattr(telephony_sipgate, "transcribe_audio", lambda b: "transcript")
+    dummy_json = json.dumps(
+        {
+            "type": "InvoiceContext",
+            "customer": {"name": "Hans"},
+            "service": {"description": "test", "materialIncluded": True},
+            "items": [
+                {
+                    "description": "Arbeitszeit Geselle",
+                    "category": "labor",
+                    "quantity": 2,
+                    "unit": "h",
+                    "unit_price": 40,
+                    "worker_role": "Geselle",
+                }
+            ],
+            "amount": {"total": 100.0, "currency": "EUR"},
+        }
+    )
     monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
-    monkeypatch.setattr(telephony_mod, "extract_invoice_context", lambda t: dummy_json)
-    monkeypatch.setattr(billing_adapter, "send_to_billing_system", lambda i: {"ok": True})
-    monkeypatch.setattr(telephony_mod, "send_to_billing_system", lambda i: {"ok": True})
-    monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir))
-    monkeypatch.setattr(telephony_mod, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(
+        telephony_sipgate, "extract_invoice_context", lambda t: dummy_json
+    )
+    monkeypatch.setattr(
+        billing_adapter, "send_to_billing_system", lambda i: {"ok": True}
+    )
+    monkeypatch.setattr(
+        telephony_common, "send_to_billing_system", lambda i: {"ok": True}
+    )
+    monkeypatch.setattr(
+        persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(
+        telephony_common, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
     monkeypatch.setattr(tts, "text_to_speech", lambda t: b"mp3")
-    monkeypatch.setattr(telephony_mod, "text_to_speech", lambda t: b"mp3")
+    monkeypatch.setattr(telephony_common, "text_to_speech", lambda t: b"mp3")
 
     from fastapi import FastAPI
 
@@ -400,25 +445,29 @@ def test_sipgate_recording(monkeypatch, tmp_data_dir):
         data={"recordingUrl": "http://example.com/audio"},
     )
     assert response.status_code == 200 or response.json().get("status") == "ok"
- 
+
 
 def test_sevdesk_mcp_adapter(monkeypatch):
     """Sends invoice to sevDesk via MCP"""
     import app.billing_adapters.sevdesk_mcp as sevdesk_mcp
+
     adapter = sevdesk_mcp.SevDeskMCPAdapter()
     called = {}
 
     def fake_post(url, json=None, timeout=10):
-        called['url'] = url
-        called['json'] = json
+        called["url"] = url
+        called["json"] = json
+
         class Resp:
             def raise_for_status(self):
                 pass
+
             def json(self):
                 return {"status": "ok"}
+
         return Resp()
 
-    monkeypatch.setattr(sevdesk_mcp.requests, 'post', fake_post)
+    monkeypatch.setattr(sevdesk_mcp.httpx, "post", fake_post)
     invoice = InvoiceContext(
         type="InvoiceContext",
         customer={},
@@ -427,7 +476,6 @@ def test_sevdesk_mcp_adapter(monkeypatch):
         amount={},
     )
     result = adapter.send_invoice(invoice)
-    assert called['url'].endswith('/invoice')
-    assert called['json']['type'] == 'InvoiceContext'
+    assert called["url"].endswith("/invoice")
+    assert called["json"]["type"] == "InvoiceContext"
     assert result == {"status": "ok"}
-
