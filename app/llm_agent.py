@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import requests
+from fastapi import HTTPException
 from openai import OpenAI
 
 from app.settings import settings
@@ -43,11 +44,14 @@ class OllamaProvider(LLMProvider):
     def extract(self, transcript: str) -> str:
         prompt = _build_prompt(transcript)
         url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
-        resp = requests.post(
-            url,
-            json={"model": settings.llm_model, "prompt": prompt, "stream": False},
-            timeout=60,
-        )
+        try:
+            resp = requests.post(
+                url,
+                json={"model": settings.llm_model, "prompt": prompt, "stream": False},
+                timeout=60,
+            )
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+            raise HTTPException(status_code=503, detail="Ollama server unreachable") from exc
         if resp.status_code == 404:
             # Ollama returns 404 when the model is unknown or not pulled yet.
             # Surface a clearer error message so users know how to resolve it.
