@@ -8,6 +8,8 @@ import os
 import shlex
 import subprocess
 import tempfile
+from typing import Any
+
 from openai import OpenAI
 
 from app.settings import settings
@@ -55,7 +57,7 @@ class CommandTranscriber(STTProvider):
 class WhisperTranscriber(STTProvider):
     """Use the local whisper package for transcription."""
 
-    _model_cache: dict[str, "whisper.Whisper"] = {}
+    _model_cache: dict[str, Any] = {}
 
     def __init__(self) -> None:
         # Lazy import to avoid mandatory dependency during test runs
@@ -65,11 +67,12 @@ class WhisperTranscriber(STTProvider):
             import numpy  # noqa: F401
         except Exception as exc:  # pragma: no cover - environment issue
             raise RuntimeError(
-                "WhisperTranscriber requires NumPy. Install it with 'pip install numpy' "
-                "or set STT_PROVIDER=openai."
+                "WhisperTranscriber requires NumPy. Install it with "
+                "'pip install numpy' or set STT_PROVIDER=openai."
             ) from exc
 
         import shutil
+
         if shutil.which("ffmpeg") is None:  # pragma: no cover - environment issue
             raise RuntimeError(
                 "WhisperTranscriber requires ffmpeg. Install it and try again "
@@ -84,8 +87,8 @@ class WhisperTranscriber(STTProvider):
             except RuntimeError as exc:  # pragma: no cover - environment issue
                 if "Numpy is not available" in str(exc):
                     raise RuntimeError(
-                        "WhisperTranscriber requires NumPy. Install it with 'pip install numpy' "
-                        "or set STT_PROVIDER=openai."
+                        "WhisperTranscriber requires NumPy. Install it with "
+                        "'pip install numpy' or set STT_PROVIDER=openai."
                     ) from exc
                 raise
         self.model = self._model_cache[settings.stt_model]

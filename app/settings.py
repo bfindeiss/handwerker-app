@@ -1,19 +1,26 @@
-import os
-from dataclasses import dataclass
+from __future__ import annotations
 
-@dataclass
-class Settings:
-    openai_api_key: str = os.getenv('OPENAI_API_KEY', '')
-    billing_adapter: str | None = os.getenv('BILLING_ADAPTER')
-    mcp_endpoint: str | None = os.getenv('MCP_ENDPOINT')
-    llm_provider: str = os.getenv('LLM_PROVIDER', 'openai')
-    llm_model: str = os.getenv('LLM_MODEL', 'gpt-4o')
-    ollama_base_url: str = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-    stt_provider: str = os.getenv('STT_PROVIDER', 'openai')
-    stt_model: str = os.getenv('STT_MODEL', 'whisper-1')
-    telephony_provider: str = os.getenv('TELEPHONY_PROVIDER', 'twilio')
-    tts_provider: str = os.getenv('TTS_PROVIDER', 'gtts')
-    elevenlabs_api_key: str | None = os.getenv('ELEVENLABS_API_KEY')
-    fail_on_llm_unavailable: bool = os.getenv('FAIL_ON_LLM_UNAVAILABLE', '0') == '1'
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Application configuration loaded from environment variables."""
+
+    openai_api_key: SecretStr | None = None
+    billing_adapter: str | None = None
+    mcp_endpoint: str | None = None
+    llm_provider: str = "openai"
+    llm_model: str = "gpt-4o"
+    ollama_base_url: str = "http://localhost:11434"
+    stt_provider: str = "openai"
+    stt_model: str = "whisper-1"
+    telephony_provider: str = "twilio"
+    tts_provider: str = "gtts"
+    elevenlabs_api_key: SecretStr | None = None
+    fail_on_llm_unavailable: bool = False
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
 
 settings = Settings()

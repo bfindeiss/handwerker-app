@@ -6,8 +6,13 @@ openai
 python-multipart
 twilio
 gtts
-requests
+httpx
 pytest
 elevenlabs
 openai-whisper
 numpy
+pydantic-settings
+pre-commit
+black
+ruff
+mypy

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-import requests
+
+import httpx
 from fastapi import HTTPException
 from openai import OpenAI
 
@@ -30,7 +31,9 @@ class OpenAIProvider(LLMProvider):
             messages=[
                 {
                     "role": "system",
-                    "content": "Du bist ein strukturierter JSON-Extraktor für Handwerker.",
+                    "content": (
+                        "Du bist ein strukturierter JSON-Extraktor " "für Handwerker."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -45,13 +48,15 @@ class OllamaProvider(LLMProvider):
         prompt = _build_prompt(transcript)
         url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
         try:
-            resp = requests.post(
+            resp = httpx.post(
                 url,
                 json={"model": settings.llm_model, "prompt": prompt, "stream": False},
                 timeout=60,
             )
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
-            raise HTTPException(status_code=503, detail="Ollama server unreachable") from exc
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=503, detail="Ollama server unreachable"
+            ) from exc
         if resp.status_code == 404:
             # Ollama returns 404 when the model is unknown or not pulled yet.
             # Surface a clearer error message so users know how to resolve it.
@@ -68,17 +73,18 @@ class OllamaProvider(LLMProvider):
 
 
 def _build_prompt(transcript: str) -> str:
-    return f"""Du bist ein KI-Assistent für Handwerker. Extrahiere aus folgendem Text eine strukturierte JSON-Rechnung gemäß folgendem Schema:
-
-{{
-  "type": "InvoiceContext",
-  "customer": {{ "name": str }},
-  "service": {{ "description": str, "materialIncluded": bool }},
-  "amount": {{ "total": float, "currency": "EUR" }}
-}}
-
-Text: "{transcript}"
-Nur JSON antworten."""
+    return (
+        "Du bist ein KI-Assistent für Handwerker. Extrahiere aus folgendem Text "
+        "eine strukturierte JSON-Rechnung gemäß folgendem Schema:\n\n"
+        "{\n"
+        '  "type": "InvoiceContext",\n'
+        '  "customer": { "name": str },\n'
+        '  "service": { "description": str, "materialIncluded": bool },\n'
+        '  "amount": { "total": float, "currency": "EUR" }\n'
+        "}\n\n"
+        f'Text: "{transcript}"\n'
+        "Nur JSON antworten."
+    )
 
 
 _LLM_PROVIDERS: dict[str, type[LLMProvider]] = {
@@ -110,10 +116,9 @@ def check_llm_backend(timeout: float = 5.0) -> bool:
             client.models.list()
         elif settings.llm_provider == "ollama":
             url = f"{settings.ollama_base_url.rstrip('/')}/api/tags"
-            requests.get(url, timeout=timeout).raise_for_status()
+            httpx.get(url, timeout=timeout).raise_for_status()
         else:  # pragma: no cover - unrecognised provider
             return True
     except Exception:
         return False
     return True
-

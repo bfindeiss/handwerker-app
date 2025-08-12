@@ -1,9 +1,11 @@
 from __future__ import annotations
-import requests
+
+import httpx
 
 from app.billing_adapter import BillingAdapter
 from app.models import InvoiceContext
 from app.settings import settings
+
 
 class SevDeskMCPAdapter(BillingAdapter):
     """Send invoices to a SevDesk-compatible MCP server."""
@@ -13,7 +15,6 @@ class SevDeskMCPAdapter(BillingAdapter):
 
     def send_invoice(self, invoice: InvoiceContext) -> dict:
         url = f"{self.endpoint.rstrip('/')}/invoice"
-        response = requests.post(url, json=invoice.model_dump(), timeout=10)
+        response = httpx.post(url, json=invoice.model_dump(), timeout=10)
         response.raise_for_status()
         return response.json()
-
