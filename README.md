@@ -1,6 +1,8 @@
 # Sprachassistent für Handwerker
 
 Ein FastAPI-basiertes Backend, das Sprache in strukturierte Rechnungsdaten umwandelt und diese an ein Rechnungssystem weiterreicht.
+Es erzeugt positionsgenaue E-Rechnungen nach EN 16931 (z. B. XRechnung/ZUGFeRD) mit Material-, Anfahrts- und Arbeitszeitposten
+inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 
 ## Start
 Uvicorn ist ein schlanker ASGI-Server, mit dem die FastAPI-Anwendung gestartet

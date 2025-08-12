@@ -79,6 +79,16 @@ def test_end_to_end(monkeypatch, tmp_data_dir):
         "type": "InvoiceContext",
         "customer": {"name": "Anna"},
         "service": {"description": "paint", "materialIncluded": True},
+        "items": [
+            {
+                "description": "Arbeitszeit Geselle",
+                "category": "labor",
+                "quantity": 1,
+                "unit": "h",
+                "unit_price": 50.0,
+                "worker_role": "Geselle",
+            }
+        ],
         "amount": {"total": 50.0, "currency": "EUR"},
     })
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "openai")
@@ -92,4 +102,5 @@ def test_end_to_end(monkeypatch, tmp_data_dir):
     assert response.status_code == 200
     data = response.json()
     assert data["invoice"]["customer"]["name"] == "Anna"
+    assert data["invoice"]["items"][0]["worker_role"] == "Geselle"
     assert Path(data["log_dir"]).exists()

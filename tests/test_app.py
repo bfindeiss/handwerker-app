@@ -9,7 +9,7 @@ import pytest
 from app.main import app
 from app import transcriber, llm_agent, billing_adapter, persistence, tts, telephony
 from app import settings as app_settings
-from app.models import InvoiceContext
+from app.models import InvoiceContext, InvoiceItem
 
 class DummyResponse:
     def __init__(self, text):
@@ -99,7 +99,13 @@ def test_transcribe_audio_command(monkeypatch):
 
 def test_extract_invoice_context(monkeypatch):
     """Extracts invoice context from text via OpenAI LLM"""
-    dummy_json = json.dumps({"type": "InvoiceContext"})
+    dummy_json = json.dumps({
+        "type": "InvoiceContext",
+        "customer": {},
+        "service": {},
+        "items": [],
+        "amount": {},
+    })
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "openai")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "gpt-4o")
     monkeypatch.setattr(llm_agent, "OpenAI", lambda: DummyOpenAI(dummy_json))
@@ -109,7 +115,13 @@ def test_extract_invoice_context(monkeypatch):
 
 def test_extract_invoice_context_ollama(monkeypatch):
     """Extracts invoice context via Ollama LLM"""
-    dummy_json = json.dumps({"type": "InvoiceContext"})
+    dummy_json = json.dumps({
+        "type": "InvoiceContext",
+        "customer": {},
+        "service": {},
+        "items": [],
+        "amount": {},
+    })
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "ollama")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "test")
 
@@ -152,7 +164,13 @@ def test_extract_invoice_context_ollama_model_missing(monkeypatch):
 
 def test_store_interaction(tmp_data_dir):
     """Stores audio, transcript and invoice files"""
-    invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, amount={})
+    invoice = InvoiceContext(
+        type="InvoiceContext",
+        customer={},
+        service={},
+        items=[],
+        amount={},
+    )
     session_dir = persistence.store_interaction(b"audio", "transcript", invoice)
     p = Path(session_dir)
     assert (p / "audio.wav").exists()
@@ -169,6 +187,16 @@ def test_process_audio(monkeypatch, tmp_data_dir):
             "type": "InvoiceContext",
             "customer": {"name": "Hans"},
             "service": {"description": "test", "materialIncluded": True},
+            "items": [
+                {
+                    "description": "Arbeitszeit Geselle",
+                    "category": "labor",
+                    "quantity": 2,
+                    "unit": "h",
+                    "unit_price": 40,
+                    "worker_role": "Geselle",
+                }
+            ],
             "amount": {"total": 100.0, "currency": "EUR"},
         }
     )
@@ -188,6 +216,7 @@ def test_process_audio(monkeypatch, tmp_data_dir):
     data = response.json()
     assert data["transcript"] == "transcript"
     assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["invoice"]["items"][0]["worker_role"] == "Geselle"
     assert data["billing_result"] == {"ok": True}
 
 
@@ -261,11 +290,27 @@ def test_twilio_recording_followup(monkeypatch, tmp_data_dir):
     monkeypatch.setattr(telephony, "transcribe_audio", lambda b: next(transcripts))
 
     def fake_extract(text):
-        data = {"type": "InvoiceContext", "customer": {}, "service": {}, "amount": {}}
+        data = {
+            "type": "InvoiceContext",
+            "customer": {},
+            "service": {},
+            "items": [],
+            "amount": {},
+        }
         if "Hans" in text:
             data["customer"] = {"name": "Hans"}
         if "Malen" in text:
             data["service"] = {"description": "Malen", "materialIncluded": True}
+            data["items"].append(
+                {
+                    "description": "Arbeitszeit Geselle",
+                    "category": "labor",
+                    "quantity": 1,
+                    "unit": "h",
+                    "unit_price": 40,
+                    "worker_role": "Geselle",
+                }
+            )
         if "100" in text:
             data["amount"] = {"total": 100.0, "currency": "EUR"}
         return json.dumps(data)
@@ -307,6 +352,16 @@ def test_sipgate_recording(monkeypatch, tmp_data_dir):
         "type": "InvoiceContext",
         "customer": {"name": "Hans"},
         "service": {"description": "test", "materialIncluded": True},
+        "items": [
+            {
+                "description": "Arbeitszeit Geselle",
+                "category": "labor",
+                "quantity": 2,
+                "unit": "h",
+                "unit_price": 40,
+                "worker_role": "Geselle",
+            }
+        ],
         "amount": {"total": 100.0, "currency": "EUR"},
     })
     monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
@@ -347,7 +402,13 @@ def test_sevdesk_mcp_adapter(monkeypatch):
         return Resp()
 
     monkeypatch.setattr(sevdesk_mcp.requests, 'post', fake_post)
-    invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, amount={})
+    invoice = InvoiceContext(
+        type="InvoiceContext",
+        customer={},
+        service={},
+        items=[],
+        amount={},
+    )
     result = adapter.send_invoice(invoice)
     assert called['url'].endswith('/invoice')
     assert called['json']['type'] == 'InvoiceContext'
