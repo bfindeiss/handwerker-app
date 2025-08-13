@@ -11,13 +11,13 @@ router = APIRouter()
 
 @router.post("/sipgate/voice")
 def sipgate_voice(request: Request):
-    """Initial Sipgate webhook to start recording."""
+    """Erster Webhook: Gibt an Sipgate die URL für die Aufnahme zurück."""
     return {"record": str(request.url_for("sipgate_recording"))}
 
 
 @router.post("/sipgate/recording")
 async def sipgate_recording(request: Request, background_tasks: BackgroundTasks):
-    """Handle recording callback from Sipgate."""
+    """Wird nach dem Auflegen aufgerufen und verarbeitet die Aufnahme."""
     form = await request.form()
     recording_url = form.get("recordingUrl")
     if not recording_url:

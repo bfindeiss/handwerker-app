@@ -1,3 +1,5 @@
+"""Datenmodelle für Rechnungen und Hilfsfunktionen."""
+
 from pydantic import BaseModel, ValidationError
 from typing import Literal, Optional
 from datetime import date
@@ -8,19 +10,25 @@ import re
 class InvoiceItem(BaseModel):
     """Einzelne Rechnungsposition."""
 
+    # Freitextbeschreibung der Position.
     description: str
+    # Art der Leistung – wird später für die Rechnungsklasse genutzt.
     category: Literal["material", "travel", "labor"]
     quantity: float
     unit: str
     unit_price: float
+    # Optional kann die Rolle des Mitarbeiters angegeben werden.
     worker_role: Optional[str] = None
 
     @property
     def total(self) -> float:
+        """Gesamtpreis der Position (Menge × Einzelpreis)."""
         return self.quantity * self.unit_price
 
 
 class InvoiceContext(BaseModel):
+    """Gesamte, strukturierte Rechnung wie sie vom LLM geliefert wird."""
+
     type: str
     customer: dict
     service: dict
@@ -31,16 +39,15 @@ class InvoiceContext(BaseModel):
 
 
 def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
-    """Parse JSON string into an :class:`InvoiceContext`.
+    """JSON-Text in das ``InvoiceContext``-Modell überführen."""
 
-    Raises a ``ValueError`` if the JSON is empty or invalid.
-    """
     if not invoice_json or not invoice_json.strip():
         raise ValueError("empty invoice context")
 
     cleaned = invoice_json.strip()
 
-    # Allow LLM responses wrapped in markdown code fences or additional text.
+    # LLMs verpacken ihre Ausgabe manchmal in Markdown-Codeblöcke – wir
+    # schneiden alles außerhalb der geschweiften Klammern weg.
     match = re.search(r"\{.*\}", cleaned, re.DOTALL)
     if match:
         cleaned = match.group(0)
@@ -56,13 +63,13 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
 
 
 def missing_invoice_fields(invoice: "InvoiceContext") -> list[str]:
-    """Return a list of missing mandatory fields for an invoice.
+    """Prüft auf Pflichtfelder und listet fehlende Angaben auf."""
 
-    The current schema requires a customer name, service description, at least
-    one invoice item and the total amount. If any of these fields are missing
-    or empty the respective
-    field path is returned, e.g. ``customer.name``.
-    """
+    # Für eine gültige Rechnung benötigen wir mindestens
+    # - den Kundennamen
+    # - eine Beschreibung der Dienstleistung
+    # - mindestens eine Rechnungsposition
+    # - den Gesamtbetrag
     missing: list[str] = []
     if not invoice.customer.get("name"):
         missing.append("customer.name")
