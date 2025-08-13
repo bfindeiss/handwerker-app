@@ -14,6 +14,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [Lokaler LLM (Ollama)](#lokaler-llm-ollama)
 - [MacBook Pro: Lokale Ausführung mit Ollama](#macbook-pro-lokale-ausführung-mit-ollama)
 - [Tests ausführen](#tests-ausführen)
+- [Code Coverage in GitHub anzeigen](#code-coverage-in-github-anzeigen)
 - [Deployment auf Render](#deployment-auf-render)
 - [iPhone: Lokaler Test mit Pyto (experimentell)](#iphone-lokaler-test-mit-pyto-experimentell)
 - [Fehlerbehebung](#fehlerbehebung)
@@ -125,6 +126,18 @@ uvicorn app.main:app --reload
 ```bash
 pytest
 ```
+
+## Code Coverage in GitHub anzeigen
+
+Um die Testabdeckung direkt auf GitHub nachvollziehen zu können, nutzt dieses Projekt [Codecov](https://about.codecov.io/). Die bestehende GitHub-Action in `.github/workflows/ci.yml` führt die Tests mit Coverage aus und lädt den Bericht anschließend zu Codecov hoch. Damit das funktioniert, sind einige Schritte nötig:
+
+1. Bei Codecov mit dem GitHub-Account anmelden und das Repository `handwerker-app` hinzufügen.
+2. In den Repository-Einstellungen bei Codecov den **Upload Token** kopieren.
+3. Im GitHub-Repository unter **Settings → Secrets and variables → Actions** einen neuen Secret namens `CODECOV_TOKEN` anlegen und den kopierten Token einfügen.
+4. Änderungen committen und pushen. Der CI-Workflow erstellt dabei automatisch die Datei `coverage.xml` (siehe `pytest.ini`) und lädt sie zu Codecov hoch.
+5. Nach erfolgreichem Upload zeigt Codecov in Pull Requests einen Statuscheck bzw. Kommentar an, und das Badge im README wird aktualisiert. Ersetze dafür in der Badge-URL den Platzhalter `OWNER` durch deinen GitHub-Benutzernamen oder die Organisation.
+
+Über das Codecov-Dashboard lassen sich bei Bedarf weitere Einstellungen wie Mindestabdeckung oder PR-Kommentare konfigurieren.
 
 ## Deployment auf Render
 
