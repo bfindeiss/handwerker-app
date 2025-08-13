@@ -8,6 +8,7 @@ twilio
 gtts
 httpx
 pytest
+pytest-cov
 elevenlabs
 openai-whisper
 numpy
