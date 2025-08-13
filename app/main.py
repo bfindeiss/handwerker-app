@@ -1,19 +1,20 @@
 import logging
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import File, HTTPException, UploadFile, FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.transcriber import transcribe_audio
-from app.llm_agent import extract_invoice_context, check_llm_backend
 from app.billing_adapter import send_to_billing_system
-from app.persistence import store_interaction
+from app.llm_agent import check_llm_backend, extract_invoice_context
 from app.models import parse_invoice_context
-from app.telephony import router as telephony_router
+from app.persistence import store_interaction
 from app.settings import settings
+from app.telephony import router as telephony_router
+from app.transcriber import transcribe_audio
 from app.logging_config import configure_logging
 
 configure_logging()
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -22,15 +23,17 @@ app.include_router(telephony_router)
 
 @app.on_event("startup")
 def _check_llm_backend() -> None:
-    if not check_llm_backend():
-        msg = (
-            "LLM backend unreachable. "
-            "Consider switching to a fallback provider or set "
-            "FAIL_ON_LLM_UNAVAILABLE=1 to abort startup."
-        )
-        if settings.fail_on_llm_unavailable:
-            raise RuntimeError(msg)
-        logging.warning(msg)
+    if check_llm_backend():
+        logger.info("LLM backend reachable")
+        return
+    msg = (
+        "LLM backend unreachable. "
+        "Consider switching to a fallback provider or set "
+        "FAIL_ON_LLM_UNAVAILABLE=1 to abort startup."
+    )
+    if settings.fail_on_llm_unavailable:
+        raise RuntimeError(msg)
+    logger.warning(msg)
 
 
 @app.get("/")
@@ -52,13 +55,26 @@ def web_interface():
 async def process_audio(file: UploadFile = File(...)):
     audio_bytes = await file.read()
     transcript = transcribe_audio(audio_bytes)
-    invoice_json = extract_invoice_context(transcript)
+    logger.debug("Transcript: %s", transcript)
+    try:
+        invoice_json = extract_invoice_context(transcript)
+        logger.debug("LLM raw response: %s", invoice_json)
+    except HTTPException as exc:
+        logger.exception("LLM backend failure: %s", exc.detail)
+        raise
     try:
         invoice = parse_invoice_context(invoice_json)
     except ValueError as exc:
+        logger.exception(
+            "Failed to parse invoice context: %s. Transcript: %s, Raw response: %s",
+            exc,
+            transcript,
+            invoice_json,
+        )
         raise HTTPException(status_code=502, detail=str(exc))
     result = send_to_billing_system(invoice)
     log_dir = store_interaction(audio_bytes, transcript, invoice)
+    logger.info("Processed audio successfully: log_dir=%s", log_dir)
     return {
         "transcript": transcript,
         "invoice": invoice.model_dump(),
