@@ -35,7 +35,8 @@ class OpenAIProvider(LLMProvider):
                 {
                     "role": "system",
                     "content": (
-                        "Du bist ein strukturierter JSON-Extraktor " "für Handwerker."
+                        "Du bist ein strukturierter JSON-Extraktor für Handwerker. "
+                        "Stelle sicher, dass die Antwort immer einen gültigen ``items``-Block mit Rechnungspositionen enthält."
                     ),
                 },
                 {"role": "user", "content": prompt},
@@ -88,10 +89,13 @@ def _build_prompt(transcript: str) -> str:
         '  "type": "InvoiceContext",\n'
         '  "customer": { "name": str },\n'
         '  "service": { "description": str, "materialIncluded": bool },\n'
+        '  "items": [\n'
+        '    { "description": str, "category": "material"|"travel"|"labor", "quantity": float, "unit": str, "unit_price": float, "worker_role": str? }\n'
+        "  ],\n"
         '  "amount": { "total": float, "currency": "EUR" }\n'
         "}\n\n"
         f'Text: "{transcript}"\n'
-        "Nur JSON antworten."
+        "Antworte ausschließlich mit gültigem JSON. ``items`` muss vorhanden sein; falls keine Positionen erkennbar sind, gib eine leere Liste zurück."
     )
 
 

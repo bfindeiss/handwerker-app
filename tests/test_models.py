@@ -19,6 +19,12 @@ def test_parse_invoice_context_invalid():
         parse_invoice_context("not json")
 
 
+def test_parse_invoice_context_missing_items():
+    raw = '{"type": "InvoiceContext", "customer": {}, "service": {}, "amount": {}}'
+    invoice = parse_invoice_context(raw)
+    assert invoice.items == []
+
+
 def test_missing_invoice_fields():
     invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, items=[], amount={})
     missing = missing_invoice_fields(invoice)
@@ -38,3 +44,4 @@ def test_missing_invoice_fields():
     )
     invoice.amount["total"] = 40
     assert missing_invoice_fields(invoice) == []
+

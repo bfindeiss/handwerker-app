@@ -49,6 +49,7 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
     except json.JSONDecodeError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
     try:
+        data.setdefault("items", [])
         return InvoiceContext(**data)
     except ValidationError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
