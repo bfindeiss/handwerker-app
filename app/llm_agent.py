@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+import logging
 import httpx
 from fastapi import HTTPException
 from openai import OpenAI
 
 from app.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class LLMProvider(ABC):
@@ -54,6 +57,7 @@ class OllamaProvider(LLMProvider):
                 timeout=60,
             )
         except httpx.RequestError as exc:
+            logger.exception("Failed to contact Ollama server at %s", url)
             raise HTTPException(
                 status_code=503, detail="Ollama server unreachable"
             ) from exc
@@ -64,11 +68,15 @@ class OllamaProvider(LLMProvider):
                 detail = resp.json().get("error", "model not found")
             except Exception:  # pragma: no cover - invalid JSON
                 detail = "model not found"
+            logger.error(
+                "Ollama model '%s' unavailable: %s", settings.llm_model, detail
+            )
             raise RuntimeError(
                 f"Ollama model '{settings.llm_model}' unavailable: {detail}"
             )
 
         resp.raise_for_status()
+        logger.debug("Ollama response: %s", getattr(resp, "text", resp))
         return resp.json().get("response", "")
 
 
