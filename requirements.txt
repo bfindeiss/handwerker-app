@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+mangum
 pydantic
 python-dotenv
 openai
