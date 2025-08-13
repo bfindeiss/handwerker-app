@@ -8,6 +8,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 
 ## Inhaltsverzeichnis
 
+- [Codeübersicht](#codeübersicht)
 - [Installation und Start](#installation-und-start)
 - [Telefonie konfigurieren](#telefonie-konfigurieren)
 - [Audioverarbeitung & Weboberfläche](#audioverarbeitung--weboberfläche)
@@ -20,6 +21,27 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
   - ["WhisperTranscriber requires ffmpeg"](#whispertranscriber-requires-ffmpeg)
   - ["Numpy is not available"](#numpy-is-not-available)
   - ["A module that was compiled using NumPy 1.x cannot be run"](#a-module-that-was-compiled-using-numpy-1x-cannot-be-run)
+
+## Codeübersicht
+
+Die wichtigsten Module sind über die `app/`-Struktur verteilt:
+
+- [`app/main.py`](app/main.py) – definiert die FastAPI-Anwendung und den
+  Endpunkt [`process_audio`](app/main.py) für hochgeladene Aufnahmen.
+- [`app/models.py`](app/models.py) – Pydantic-Modelle wie `InvoiceContext`, das
+  die Struktur einer Rechnung vorgibt.
+- [`app/llm_agent.py`](app/llm_agent.py) – kapselt den Zugriff auf
+  unterschiedliche LLMs und baut die Prompts.
+- [`app/transcriber.py`](app/transcriber.py) – abstrahiert verschiedene
+  Speech‑to‑Text‑Backends.
+- [`app/billing_adapter.py`](app/billing_adapter.py) samt
+  Unterordner `billing_adapters/` – Schnittstellen zu externen
+  Rechnungssystemen.
+- [`app/telephony/`](app/telephony) – Webhooks für Twilio oder Sipgate.
+- [`app/persistence.py`](app/persistence.py) – speichert Audiodatei,
+  Transkript und JSON im Verzeichnis `data/`.
+
+Weitere Details finden sich direkt in den kommentierten Quelltexten.
 
 ## Installation und Start
 

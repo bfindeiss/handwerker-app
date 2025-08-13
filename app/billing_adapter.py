@@ -8,7 +8,7 @@ from app.settings import settings
 
 
 class BillingAdapter(ABC):
-    """Interface for all billing adapters."""
+    """Basisklasse für alle Rechnungs-Schnittstellen."""
 
     @abstractmethod
     def send_invoice(self, invoice: InvoiceContext) -> dict:
@@ -17,7 +17,7 @@ class BillingAdapter(ABC):
 
 
 class DummyAdapter(BillingAdapter):
-    """Fallback adapter used when no other adapter is configured."""
+    """Einfache Rückfalllösung, die nur einen Erfolgsstatus liefert."""
 
     def send_invoice(self, invoice: InvoiceContext) -> dict:
         return {
@@ -27,8 +27,9 @@ class DummyAdapter(BillingAdapter):
 
 
 def _load_adapter(path: Optional[str]) -> BillingAdapter:
-    """Load adapter specified as 'module:Class'."""
+    """Dynamisch eine Adapter-Klasse aus ``module:Class`` laden."""
     if not path:
+        # Keine Konfiguration vorhanden → Dummy verwenden.
         return DummyAdapter()
     module_name, class_name = path.split(":")
     module = import_module(module_name)
@@ -42,6 +43,7 @@ _adapter: Optional[BillingAdapter] = None
 
 
 def get_adapter() -> BillingAdapter:
+    """Gibt den einmalig initialisierten Adapter zurück."""
     global _adapter
     if _adapter is None:
         _adapter = _load_adapter(settings.billing_adapter)
@@ -49,5 +51,6 @@ def get_adapter() -> BillingAdapter:
 
 
 def send_to_billing_system(invoice: InvoiceContext) -> dict:
+    """Hilfsfunktion für den Rest des Codes, der keine Adapterdetails kennt."""
     adapter = get_adapter()
     return adapter.send_invoice(invoice)

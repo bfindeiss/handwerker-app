@@ -8,12 +8,15 @@ from app.settings import settings
 
 
 class SevDeskMCPAdapter(BillingAdapter):
-    """Send invoices to a SevDesk-compatible MCP server."""
+    """Schnittstelle zu einem SevDesk-kompatiblen MCP-Server."""
 
     def __init__(self) -> None:
+        # Basis-URL des MCP-Servers aus den Einstellungen lesen. Fällt auf
+        # localhost zurück, wenn nichts gesetzt ist.
         self.endpoint = settings.mcp_endpoint or "http://localhost:8001"
 
     def send_invoice(self, invoice: InvoiceContext) -> dict:
+        """Übermittelt die Rechnung per HTTP POST an den MCP-Endpunkt."""
         url = f"{self.endpoint.rstrip('/')}/invoice"
         response = httpx.post(url, json=invoice.model_dump(), timeout=10)
         response.raise_for_status()

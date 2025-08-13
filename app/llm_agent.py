@@ -1,4 +1,4 @@
-"""LLM-based invoice context extraction."""
+"""Kommunikation mit unterschiedlichen LLM-Anbietern."""
 
 from __future__ import annotations
 
@@ -15,16 +15,16 @@ logger = logging.getLogger(__name__)
 
 
 class LLMProvider(ABC):
-    """Abstract base class for LLM integrations."""
+    """Abstrakte Basis für alle Large-Language-Model-Backends."""
 
     @abstractmethod
     def extract(self, transcript: str) -> str:
-        """Return JSON context extracted from the transcript."""
+        """Gibt aus einem Transkript extrahiertes JSON zurück."""
         raise NotImplementedError
 
 
 class OpenAIProvider(LLMProvider):
-    """Use OpenAI chat completions API."""
+    """Verwendet die Chat-Completions-API von OpenAI."""
 
     def extract(self, transcript: str) -> str:
         client = OpenAI()
@@ -45,7 +45,7 @@ class OpenAIProvider(LLMProvider):
 
 
 class OllamaProvider(LLMProvider):
-    """Use a local Ollama server."""
+    """Spricht mit einem lokalen Ollama-Server."""
 
     def extract(self, transcript: str) -> str:
         prompt = _build_prompt(transcript)
@@ -81,6 +81,7 @@ class OllamaProvider(LLMProvider):
 
 
 def _build_prompt(transcript: str) -> str:
+    """Stellt den Eingabetext für das LLM zusammen."""
     return (
         "Du bist ein KI-Assistent für Handwerker. Extrahiere aus folgendem Text "
         "eine strukturierte JSON-Rechnung gemäß folgendem Schema:\n\n"
@@ -102,6 +103,7 @@ _LLM_PROVIDERS: dict[str, type[LLMProvider]] = {
 
 
 def _select_provider() -> LLMProvider:
+    """Gibt den konfigurierten LLM-Provider zurück."""
     try:
         provider_cls = _LLM_PROVIDERS[settings.llm_provider]
     except KeyError:  # pragma: no cover - configuration error
@@ -110,13 +112,13 @@ def _select_provider() -> LLMProvider:
 
 
 def extract_invoice_context(transcript: str) -> str:
-    """Extract structured invoice context from the transcript."""
+    """Hauptschnittstelle für die restliche App."""
     provider = _select_provider()
     return provider.extract(transcript)
 
 
 def check_llm_backend(timeout: float = 5.0) -> bool:
-    """Ping the configured LLM backend and return ``True`` on success."""
+    """Prüft, ob das gewählte LLM erreichbar ist."""
     try:
         if settings.llm_provider == "openai":
             client = OpenAI()

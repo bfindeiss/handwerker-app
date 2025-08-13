@@ -11,15 +11,16 @@ from app.settings import settings
 
 
 class TTSProvider(ABC):
-    """Abstract base class for TTS backends."""
+    """Abstrakte Basis für verschiedene Text-zu-Sprache-Anbieter."""
 
     @abstractmethod
     def synthesize(self, text: str, lang: str = "de") -> bytes:
+        """Erzeugt Audiobits aus Text."""
         raise NotImplementedError
 
 
 class GTTSProvider(TTSProvider):
-    """Use gTTS to generate speech."""
+    """Verwendet das freie `gTTS`-Paket."""
 
     def synthesize(self, text: str, lang: str = "de") -> bytes:
         tts = gTTS(text=text, lang=lang)
@@ -29,7 +30,7 @@ class GTTSProvider(TTSProvider):
 
 
 class ElevenLabsProvider(TTSProvider):
-    """Use ElevenLabs API to generate speech."""
+    """Bindet den Cloud-Dienst von ElevenLabs ein."""
 
     def synthesize(self, text: str, lang: str = "de") -> bytes:
         if not settings.elevenlabs_api_key:
@@ -53,6 +54,7 @@ _TTS_PROVIDERS: dict[str, type[TTSProvider]] = {
 
 
 def _select_provider() -> TTSProvider:
+    """Ermittelt anhand der Einstellungen die zu nutzende Implementierung."""
     try:
         provider_cls = _TTS_PROVIDERS[settings.tts_provider]
     except KeyError:  # pragma: no cover - configuration error
@@ -61,6 +63,6 @@ def _select_provider() -> TTSProvider:
 
 
 def text_to_speech(text: str, lang: str = "de") -> bytes:
-    """Generate speech using the configured provider."""
+    """Hilfsfunktion für den Rest der App."""
     provider = _select_provider()
     return provider.synthesize(text, lang)

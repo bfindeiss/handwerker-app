@@ -16,16 +16,16 @@ from app.settings import settings
 
 
 class STTProvider(ABC):
-    """Abstract base class for speech-to-text backends."""
+    """Basisklasse für alle Speech-to-Text-Backends."""
 
     @abstractmethod
     def transcribe(self, audio_bytes: bytes) -> str:
-        """Convert raw audio bytes to text."""
+        """Wandelt rohe Audio-Bytes in Text um."""
         raise NotImplementedError
 
 
 class OpenAITranscriber(STTProvider):
-    """Use OpenAI Whisper API for transcription."""
+    """Nutzen die Whisper-API von OpenAI."""
 
     def transcribe(self, audio_bytes: bytes) -> str:
         client = OpenAI()
@@ -38,7 +38,7 @@ class OpenAITranscriber(STTProvider):
 
 
 class CommandTranscriber(STTProvider):
-    """Run a local command line tool for transcription."""
+    """Startet ein lokales Kommandozeilen-Tool."""
 
     def transcribe(self, audio_bytes: bytes) -> str:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
@@ -55,7 +55,7 @@ class CommandTranscriber(STTProvider):
 
 
 class WhisperTranscriber(STTProvider):
-    """Use the local whisper package for transcription."""
+    """Verwendet das lokale `whisper`-Paket."""
 
     _model_cache: dict[str, Any] = {}
 
@@ -110,7 +110,7 @@ _STT_PROVIDERS: dict[str, type[STTProvider]] = {
 
 
 def _select_provider() -> STTProvider:
-    """Return the configured speech-to-text provider."""
+    """Wählt anhand der Einstellung den passenden Provider aus."""
     provider_name = settings.stt_provider
     try:
         provider_cls = _STT_PROVIDERS[provider_name]
@@ -120,6 +120,6 @@ def _select_provider() -> STTProvider:
 
 
 def transcribe_audio(audio_bytes: bytes) -> str:
-    """Transcribe audio using the configured provider."""
+    """Convenience-Funktion für andere Module."""
     provider = _select_provider()
     return provider.transcribe(audio_bytes)
