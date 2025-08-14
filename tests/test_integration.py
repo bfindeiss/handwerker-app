@@ -3,9 +3,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import transcriber, llm_agent, persistence
+from app import transcriber, llm_agent
 from app import settings as app_settings
-from app.models import InvoiceContext
 
 
 class DummyResponse:
@@ -75,22 +74,24 @@ def test_end_to_end(monkeypatch, tmp_data_dir):
     monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
     monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAI("transcript"))
 
-    dummy_json = json.dumps({
-        "type": "InvoiceContext",
-        "customer": {"name": "Anna"},
-        "service": {"description": "paint", "materialIncluded": True},
-        "items": [
-            {
-                "description": "Arbeitszeit Geselle",
-                "category": "labor",
-                "quantity": 1,
-                "unit": "h",
-                "unit_price": 50.0,
-                "worker_role": "Geselle",
-            }
-        ],
-        "amount": {"total": 50.0, "currency": "EUR"},
-    })
+    dummy_json = json.dumps(
+        {
+            "type": "InvoiceContext",
+            "customer": {"name": "Anna"},
+            "service": {"description": "paint", "materialIncluded": True},
+            "items": [
+                {
+                    "description": "Arbeitszeit Geselle",
+                    "category": "labor",
+                    "quantity": 1,
+                    "unit": "h",
+                    "unit_price": 50.0,
+                    "worker_role": "Geselle",
+                }
+            ],
+            "amount": {"total": 50.0, "currency": "EUR"},
+        }
+    )
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "openai")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "gpt-4o")
     monkeypatch.setattr(llm_agent, "OpenAI", lambda: DummyOpenAI(dummy_json))
@@ -104,3 +105,5 @@ def test_end_to_end(monkeypatch, tmp_data_dir):
     assert data["invoice"]["customer"]["name"] == "Anna"
     assert data["invoice"]["items"][0]["worker_role"] == "Geselle"
     assert Path(data["log_dir"]).exists()
+    assert Path(data["pdf_path"]).exists()
+    assert data["pdf_url"].endswith("invoice.pdf")

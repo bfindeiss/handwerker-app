@@ -10,6 +10,7 @@ gtts
 httpx
 pytest
 pytest-cov
+reportlab
 elevenlabs
 openai-whisper
 numpy
