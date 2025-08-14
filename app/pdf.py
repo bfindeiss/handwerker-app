@@ -32,6 +32,8 @@ def generate_invoice_pdf(invoice: InvoiceContext, file_path: Path) -> None:
     c.setSubject("E-Rechnung")
 
     lines = [
+        f"Rechnungsnummer: {invoice.invoice_number or ''}",
+        f"Datum: {invoice.issue_date or ''}",
         f"Kunde: {invoice.customer.get('name', '')}",
         f"Leistung: {invoice.service.get('description', '')}",
         "Positionen:",

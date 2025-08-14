@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     tts_provider: str = "gtts"
     elevenlabs_api_key: SecretStr | None = None
 
+    # Standardpreise für Positionen, damit Rechnungen sinnvolle Beträge
+    # enthalten, selbst wenn keine expliziten Angaben gemacht werden.
+    travel_rate_per_km: float = 1.0
+    labor_rate_geselle: float = 50.0
+    labor_rate_meister: float = 70.0
+    labor_rate_default: float = 60.0
+    material_rate_default: float | None = None
+
     # Verhalten beim Start, falls das LLM nicht erreichbar ist
     fail_on_llm_unavailable: bool = False
 

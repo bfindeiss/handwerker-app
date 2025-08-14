@@ -88,6 +88,15 @@ def test_transcribe_audio(monkeypatch):
     assert result == "hallo"
 
 
+def test_transcribe_audio_normalized(monkeypatch):
+    """Normalisiert häufige Erkennungsfehler im Transkript."""
+    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
+    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
+    monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAI("eine Geseldenstunde"))
+    result = transcriber.transcribe_audio(b"audio")
+    assert result == "eine Gesellenstunde"
+
+
 def test_transcribe_audio_command(monkeypatch):
     """Transcribes audio using a command line STT backend"""
     monkeypatch.setattr(transcriber.settings, "stt_provider", "command")

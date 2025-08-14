@@ -122,4 +122,16 @@ def _select_provider() -> STTProvider:
 def transcribe_audio(audio_bytes: bytes) -> str:
     """Convenience-Funktion für andere Module."""
     provider = _select_provider()
-    return provider.transcribe(audio_bytes)
+    raw = provider.transcribe(audio_bytes)
+    return _normalize_transcript(raw)
+
+
+def _normalize_transcript(text: str) -> str:
+    """Korrigiert häufige Erkennungsfehler im Transkript."""
+    replacements = {
+        "Geselden": "Gesellen",
+        "Geseldenstunde": "Gesellenstunde",
+    }
+    for wrong, correct in replacements.items():
+        text = text.replace(wrong, correct)
+    return text
