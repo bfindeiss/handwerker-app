@@ -42,7 +42,7 @@ ollama serve &
 OLLAMA_PID=$!
 
 # FastAPI-Anwendung starten
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0
 
 # beim Beenden auch den Ollama-Server stoppen
 kill $OLLAMA_PID
