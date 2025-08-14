@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"
     llm_model: str = "gpt-4o"
     ollama_base_url: str = "http://localhost:11434"
+    # Request timeout for Ollama interactions (seconds)
+    ollama_timeout: float = 60.0
     stt_provider: str = "openai"
     stt_model: str = "whisper-1"
 
