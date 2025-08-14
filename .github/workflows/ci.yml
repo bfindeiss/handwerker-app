@@ -7,8 +7,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    permissions:
+      contents: write
+      checks: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -20,16 +22,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Run tests with coverage
-        run: pytest
+        run: |
+          pytest --cov-report=term-missing:skip-covered --junitxml=pytest.xml | tee pytest-coverage.txt
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: coverage.xml
-      - name: Upload coverage to Codecov
-        if: ${{ env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v4
+          path: |
+            coverage.xml
+            pytest-coverage.txt
+            pytest.xml
+      - name: Pytest coverage comment
+        if: github.event_name == 'pull_request'
+        uses: MishaKav/pytest-coverage-comment@v1
         with:
-          files: coverage.xml
-          token: ${{ env.CODECOV_TOKEN }}
-          fail_ci_if_error: true
+          pytest-coverage-path: pytest-coverage.txt
+          pytest-xml-coverage-path: coverage.xml
+          junitxml-path: pytest.xml

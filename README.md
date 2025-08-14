@@ -1,7 +1,5 @@
 # Sprachassistent für Handwerker
 
-[![codecov](https://codecov.io/gh/OWNER/handwerker-app/branch/main/graph/badge.svg)](https://codecov.io/gh/OWNER/handwerker-app)
-
 Ein FastAPI-basiertes Backend, das Sprache in strukturierte Rechnungsdaten umwandelt und diese an ein Rechnungssystem weiterreicht.
 Es erzeugt positionsgenaue E-Rechnungen nach EN 16931 (z. B. XRechnung/ZUGFeRD) mit Material-, Anfahrts- und Arbeitszeitposten
 inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
@@ -183,15 +181,7 @@ pytest
 
 ## Code Coverage in GitHub anzeigen
 
-Um die Testabdeckung direkt auf GitHub nachvollziehen zu können, nutzt dieses Projekt [Codecov](https://about.codecov.io/). Die bestehende GitHub-Action in `.github/workflows/ci.yml` führt die Tests mit Coverage aus und lädt den Bericht anschließend zu Codecov hoch. Damit das funktioniert, sind einige Schritte nötig:
-
-1. Bei Codecov mit dem GitHub-Account anmelden und das Repository `handwerker-app` hinzufügen.
-2. In den Repository-Einstellungen bei Codecov den **Upload Token** kopieren.
-3. Im GitHub-Repository unter **Settings → Secrets and variables → Actions** einen neuen Secret namens `CODECOV_TOKEN` anlegen und den kopierten Token einfügen.
-4. Änderungen committen und pushen. Der CI-Workflow erstellt dabei automatisch die Datei `coverage.xml` (siehe `pytest.ini`) und lädt sie zu Codecov hoch.
-5. Nach erfolgreichem Upload zeigt Codecov in Pull Requests einen Statuscheck bzw. Kommentar an, und das Badge im README wird aktualisiert. Ersetze dafür in der Badge-URL den Platzhalter `OWNER` durch deinen GitHub-Benutzernamen oder die Organisation.
-
-Über das Codecov-Dashboard lassen sich bei Bedarf weitere Einstellungen wie Mindestabdeckung oder PR-Kommentare konfigurieren.
+Die Testabdeckung wird über die Open‑Source‑Action [pytest-coverage-comment](https://github.com/MishaKav/pytest-coverage-comment) direkt in Pull Requests dargestellt. Der Workflow `.github/workflows/ci.yml` führt `pytest` mit Coverage aus, lädt die Dateien `coverage.xml`, `pytest-coverage.txt` und `pytest.xml` als Artefakte hoch und kommentiert die Ergebnisse automatisch im PR. Eine Registrierung bei externen Diensten ist dafür nicht nötig.
 
 ## Deployment auf AWS Lambda
 
