@@ -144,6 +144,37 @@ export STT_PROVIDER=whisper
 uvicorn app.main:app --reload
 ```
 
+## Weboberfläche im Internet bereitstellen
+
+Standardmäßig lauscht die Anwendung nur auf `localhost` und ist damit nur
+vom eigenen Rechner erreichbar. Soll die Oberfläche aus dem Internet
+zugänglich sein, sind zwei Schritte nötig:
+
+1. **Server auf allen Interfaces starten**
+
+   ```bash
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   # im Startskript scripts/run_mac_ollama.sh bereits enthalten
+   ```
+
+2. **Öffentlichen Zugang einrichten**
+
+   - Entweder im Router eine Portweiterleitung auf den lokalen Port 8000
+     konfigurieren und anschließend `http://<deine_IP>:8000/web`
+     aufrufen.
+   - Oder einen Tunnel-Dienst wie [ngrok](https://ngrok.com) verwenden:
+
+     ```bash
+     ngrok http 8000
+     ```
+
+     Die von ngrok ausgegebene URL (`https://<id>.ngrok.io/web`) leitet auf
+     den lokalen Server weiter.
+
+Beachte, dass die Anwendung dadurch öffentlich erreichbar ist. Für
+sensiblere Szenarien sollten Authentifizierung oder ein eingeschränkter
+Zugriff verwendet werden.
+
 ## Tests ausführen
 
 ```bash
