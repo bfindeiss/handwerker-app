@@ -202,6 +202,7 @@ def test_store_interaction(tmp_data_dir):
     assert (p / "audio.wav").exists()
     assert (p / "transcript.txt").exists()
     assert (p / "invoice.json").exists()
+    assert (p / "invoice.pdf").exists()
 
 
 def test_process_audio(monkeypatch, tmp_data_dir):
@@ -246,6 +247,8 @@ def test_process_audio(monkeypatch, tmp_data_dir):
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["invoice"]["items"][0]["worker_role"] == "Geselle"
     assert data["billing_result"] == {"ok": True}
+    assert data["pdf_path"].endswith("dir/invoice.pdf")
+    assert data["pdf_url"].endswith("/dir/invoice.pdf")
 
 
 def test_process_audio_invalid_invoice(monkeypatch):

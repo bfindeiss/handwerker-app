@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from fastapi import File, HTTPException, UploadFile, FastAPI
 from fastapi.responses import FileResponse
@@ -23,6 +24,8 @@ logger = logging.getLogger(__name__)
 # registrieren.
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# Sitzungsartefakte (z. B. generierte PDFs) unter /data verfügbar machen.
+app.mount("/data", StaticFiles(directory="data"), name="data")
 app.include_router(telephony_router)
 
 
@@ -95,10 +98,15 @@ async def process_audio(file: UploadFile = File(...)):
     log_dir = store_interaction(audio_bytes, transcript, invoice)
     logger.info("Processed audio successfully: log_dir=%s", log_dir)
 
+    pdf_path = str(Path(log_dir) / "invoice.pdf")
+    pdf_url = "/" + pdf_path.replace("\\", "/")
+
     # 6) Die aufbereiteten Daten an den Aufrufer zurückgeben.
     return {
         "transcript": transcript,
         "invoice": invoice.model_dump(),
         "billing_result": result,
         "log_dir": log_dir,
+        "pdf_path": pdf_path,
+        "pdf_url": pdf_url,
     }

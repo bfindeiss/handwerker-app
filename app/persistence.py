@@ -2,10 +2,12 @@ from pathlib import Path
 from datetime import datetime
 import json
 from app.models import InvoiceContext
+from app.pdf import generate_invoice_pdf
 
 DATA_DIR = Path("data")
 # Alle Sitzungen werden in diesem Verzeichnis abgelegt.
 DATA_DIR.mkdir(exist_ok=True)
+
 
 def store_interaction(audio: bytes, transcript: str, invoice: InvoiceContext) -> str:
     """Speichert alle Artefakte einer Sitzung unter ``data/<timestamp>/``."""
@@ -22,4 +24,5 @@ def store_interaction(audio: bytes, transcript: str, invoice: InvoiceContext) ->
         json.dumps(invoice.model_dump(), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    generate_invoice_pdf(invoice, session_dir / "invoice.pdf")
     return str(session_dir)
