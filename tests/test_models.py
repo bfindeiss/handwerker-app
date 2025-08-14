@@ -25,6 +25,29 @@ def test_parse_invoice_context_missing_items():
     assert invoice.items == []
 
 
+def test_parse_invoice_context_with_comments_and_trailing_commas():
+    raw = """
+    {
+      "type": "InvoiceContext", // Kommentar
+      "customer": { "name": "Hans" },
+      "service": { "description": "Malen" },
+      "items": [
+        {
+          "description": "Holz", // Kommentar
+          "category": "material",
+          "quantity": 1,
+          "unit": "stk",
+          "unit_price": 5, // Kommentar
+        },
+      ],
+      "amount": { "total": 5, "currency": "EUR" },
+    }
+    """
+    invoice = parse_invoice_context(raw)
+    assert invoice.items[0].description == "Holz"
+    assert invoice.amount["total"] == 5
+
+
 def test_missing_invoice_fields():
     invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, items=[], amount={})
     missing = missing_invoice_fields(invoice)
