@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Handwerker Sprachassistent auf AWS Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: python3.11
+
+Resources:
+  ApiGateway:
+    Type: AWS::Serverless::HttpApi
+
+  HandwerkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.lambda_handler.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiGateway
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          # Beispielhafte Umgebungsvariablen; Werte über SAM CLI oder AWS Console setzen
+          LLM_PROVIDER: openai
+          STT_PROVIDER: openai

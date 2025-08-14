@@ -16,6 +16,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [MacBook Pro: Lokale Ausführung mit Ollama](#macbook-pro-lokale-ausführung-mit-ollama)
 - [Tests ausführen](#tests-ausführen)
 - [Code Coverage in GitHub anzeigen](#code-coverage-in-github-anzeigen)
+- [Deployment auf AWS Lambda](#deployment-auf-aws-lambda)
 - [Deployment auf Render](#deployment-auf-render)
 - [iPhone: Lokaler Test mit Pyto (experimentell)](#iphone-lokaler-test-mit-pyto-experimentell)
 - [Fehlerbehebung](#fehlerbehebung)
@@ -160,6 +161,21 @@ Um die Testabdeckung direkt auf GitHub nachvollziehen zu können, nutzt dieses P
 5. Nach erfolgreichem Upload zeigt Codecov in Pull Requests einen Statuscheck bzw. Kommentar an, und das Badge im README wird aktualisiert. Ersetze dafür in der Badge-URL den Platzhalter `OWNER` durch deinen GitHub-Benutzernamen oder die Organisation.
 
 Über das Codecov-Dashboard lassen sich bei Bedarf weitere Einstellungen wie Mindestabdeckung oder PR-Kommentare konfigurieren.
+
+## Deployment auf AWS Lambda
+
+Für einen serverlosen Betrieb kann die Anwendung als AWS Lambda Function mit API Gateway bereitgestellt werden.
+
+1. Die Infrastruktur ist in `template.yaml` als AWS SAM Template beschrieben.
+2. `app/lambda_handler.py` nutzt [Mangum](https://github.com/jordaneremieff/mangum), um die FastAPI‑App mit Lambda zu verbinden.
+3. Lokales Deployment erfolgt mit:
+
+   ```bash
+   sam build
+   sam deploy --guided --stack-name handwerker-app
+   ```
+
+4. Für kontinuierliches Deployment über GitHub Actions enthält `.github/workflows/deploy.yml` einen Workflow, der Tests, Bandit‑Security‑Scan sowie Build und Deployment ausführt. Dafür müssen die Secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` und `AWS_REGION` gesetzt sein.
 
 ## Deployment auf Render
 
