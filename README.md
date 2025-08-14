@@ -111,7 +111,7 @@ LLM_PROVIDER=ollama
 LLM_MODEL=deepseek-r1:latest
 ```
 
-Das Modell `deepseek-r1:latest` liefert leistungsfähige Ergebnisse. Kleinere Modelle wie `mistral:latest`, `llama3:latest` oder `orca2:latest` funktionieren ebenfalls und benötigen weniger Ressourcen. `OLLAMA_BASE_URL` kann bei Bedarf angepasst werden. Danach wie gewohnt `uvicorn` starten und Anfragen an `/process-audio/` senden.
+Das Modell `deepseek-r1:latest` liefert leistungsfähige Ergebnisse. Kleinere Modelle wie `mistral:latest`, `llama3:latest` oder `orca2:latest` funktionieren ebenfalls und benötigen weniger Ressourcen. `OLLAMA_BASE_URL` kann bei Bedarf angepasst werden. Der Timeout für Ollama-Anfragen beträgt standardmäßig 300 Sekunden und lässt sich über `OLLAMA_TIMEOUT` konfigurieren. Danach wie gewohnt `uvicorn` starten und Anfragen an `/process-audio/` senden.
 
 ## MacBook Pro: Lokale Ausführung mit Ollama
 
