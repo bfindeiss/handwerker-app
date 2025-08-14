@@ -21,7 +21,7 @@ def store_interaction(audio: bytes, transcript: str, invoice: InvoiceContext) ->
     (session_dir / "audio.wav").write_bytes(audio)
     (session_dir / "transcript.txt").write_text(transcript, encoding="utf-8")
     (session_dir / "invoice.json").write_text(
-        json.dumps(invoice.model_dump(), ensure_ascii=False, indent=2),
+        json.dumps(invoice.model_dump(mode="json"), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     generate_invoice_pdf(invoice, session_dir / "invoice.pdf")

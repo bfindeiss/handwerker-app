@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.billing_adapter import send_to_billing_system
 from app.llm_agent import check_llm_backend, extract_invoice_context
 from app.models import parse_invoice_context
+from app.pricing import apply_pricing
 from app.persistence import store_interaction
 from app.settings import settings
 from app.telephony import router as telephony_router
@@ -93,7 +94,10 @@ async def process_audio(file: UploadFile = File(...)):
         )
         raise HTTPException(status_code=502, detail=str(exc))
 
-    # 5) Rechnung an das externe System senden und alles lokal protokollieren.
+    # 5) Fehlende Preise ergänzen und Basisangaben setzen.
+    apply_pricing(invoice)
+
+    # 6) Rechnung an das externe System senden und alles lokal protokollieren.
     result = send_to_billing_system(invoice)
     log_dir = store_interaction(audio_bytes, transcript, invoice)
     logger.info("Processed audio successfully: log_dir=%s", log_dir)
@@ -101,10 +105,10 @@ async def process_audio(file: UploadFile = File(...)):
     pdf_path = str(Path(log_dir) / "invoice.pdf")
     pdf_url = "/" + pdf_path.replace("\\", "/")
 
-    # 6) Die aufbereiteten Daten an den Aufrufer zurückgeben.
+    # 7) Die aufbereiteten Daten an den Aufrufer zurückgeben.
     return {
         "transcript": transcript,
-        "invoice": invoice.model_dump(),
+        "invoice": invoice.model_dump(mode="json"),
         "billing_result": result,
         "log_dir": log_dir,
         "pdf_path": pdf_path,
