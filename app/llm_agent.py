@@ -55,7 +55,7 @@ class OllamaProvider(LLMProvider):
             resp = httpx.post(
                 url,
                 json={"model": settings.llm_model, "prompt": prompt, "stream": False},
-                timeout=60,
+                timeout=httpx.Timeout(settings.ollama_timeout, connect=5.0),
             )
         except httpx.RequestError as exc:
             logger.exception("Failed to contact Ollama server at %s", url)
@@ -130,7 +130,7 @@ def check_llm_backend(timeout: float = 5.0) -> bool:
             client.models.list()
         elif settings.llm_provider == "ollama":
             url = f"{settings.ollama_base_url.rstrip('/')}/api/tags"
-            httpx.get(url, timeout=timeout).raise_for_status()
+            httpx.get(url, timeout=httpx.Timeout(timeout, connect=5.0)).raise_for_status()
         else:  # pragma: no cover - unrecognised provider
             return True
     except Exception:
