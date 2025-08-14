@@ -36,7 +36,8 @@ class OpenAIProvider(LLMProvider):
                     "role": "system",
                     "content": (
                         "Du bist ein strukturierter JSON-Extraktor für Handwerker. "
-                        "Stelle sicher, dass die Antwort immer einen gültigen ``items``-Block mit Rechnungspositionen enthält."
+                        "Stelle sicher, dass die Antwort immer einen gültigen "
+                        "``items``-Block mit Rechnungspositionen enthält."
                     ),
                 },
                 {"role": "user", "content": prompt},
@@ -51,11 +52,12 @@ class OllamaProvider(LLMProvider):
     def extract(self, transcript: str) -> str:
         prompt = _build_prompt(transcript)
         url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
+        timeout_s = max(300.0, settings.ollama_timeout)
         try:
             resp = httpx.post(
                 url,
                 json={"model": settings.llm_model, "prompt": prompt, "stream": False},
-                timeout=httpx.Timeout(settings.ollama_timeout, connect=5.0),
+                timeout=httpx.Timeout(timeout_s, connect=5.0),
             )
         except httpx.RequestError as exc:
             logger.exception("Failed to contact Ollama server at %s", url)
@@ -91,12 +93,15 @@ def _build_prompt(transcript: str) -> str:
         '  "customer": { "name": str },\n'
         '  "service": { "description": str, "materialIncluded": bool },\n'
         '  "items": [\n'
-        '    { "description": str, "category": "material"|"travel"|"labor", "quantity": float, "unit": str, "unit_price": float, "worker_role": str? }\n'
+        '    { "description": str, "category": '
+        '"material"|"travel"|"labor", "quantity": float, '
+        '"unit": str, "unit_price": float, "worker_role": str? }\n'
         "  ],\n"
         '  "amount": { "total": float, "currency": "EUR" }\n'
         "}\n\n"
         f'Text: "{transcript}"\n'
-        "Antworte ausschließlich mit gültigem JSON. ``items`` muss vorhanden sein; falls keine Positionen erkennbar sind, gib eine leere Liste zurück."
+        "Antworte ausschließlich mit gültigem JSON. ``items`` muss vorhanden sein; "
+        "falls keine Positionen erkennbar sind, gib eine leere Liste zurück."
     )
 
 
@@ -130,7 +135,9 @@ def check_llm_backend(timeout: float = 5.0) -> bool:
             client.models.list()
         elif settings.llm_provider == "ollama":
             url = f"{settings.ollama_base_url.rstrip('/')}/api/tags"
-            httpx.get(url, timeout=httpx.Timeout(timeout, connect=5.0)).raise_for_status()
+            httpx.get(
+                url, timeout=httpx.Timeout(timeout, connect=5.0)
+            ).raise_for_status()
         else:  # pragma: no cover - unrecognised provider
             return True
     except Exception:
