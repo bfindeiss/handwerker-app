@@ -14,6 +14,7 @@ from app.pricing import apply_pricing
 from app.persistence import store_interaction
 from app.settings import settings
 from app.telephony import router as telephony_router
+from app.conversation import router as conversation_router
 from app.transcriber import transcribe_audio
 from app.logging_config import configure_logging
 
@@ -28,6 +29,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # Sitzungsartefakte (z. B. generierte PDFs) unter /data verfügbar machen.
 app.mount("/data", StaticFiles(directory="data"), name="data")
 app.include_router(telephony_router)
+app.include_router(conversation_router)
 
 
 @app.on_event("startup")

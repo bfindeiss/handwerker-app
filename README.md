@@ -10,6 +10,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [Installation und Start](#installation-und-start)
 - [Telefonie konfigurieren](#telefonie-konfigurieren)
 - [Audioverarbeitung & Weboberfläche](#audioverarbeitung--weboberfläche)
+- [Dialogbasierte Konversation](#dialogbasierte-konversation)
 - [Lokaler LLM (Ollama)](#lokaler-llm-ollama)
 - [MacBook Pro: Lokale Ausführung mit Ollama](#macbook-pro-lokale-ausführung-mit-ollama)
 - [Tests ausführen](#tests-ausführen)
@@ -94,7 +95,15 @@ Die Antwort enthält das erkannte Transkript, die extrahierten Rechnungsdaten so
 
 ### Weboberfläche
 
-Zum schnellen Testen gibt es eine kleine HTML-Oberfläche unter `/web`. Dort kann direkt im Browser eine Aufnahme gestartet und anschließend als WAV-Datei an `/process-audio/` gesendet werden. Das Ergebnis wird nach dem Upload auf der Seite dargestellt.
+Unter `/web` steht eine moderne, dialogbasierte Oberfläche zur Verfügung. Über das Mikrofon-Symbol lassen sich Sprachbeiträge aufzeichnen, die an den Endpunkt `/conversation/` geschickt werden. Der Assistent stellt Rückfragen, spielt sie als Audio ab und zeigt den Chatverlauf an. Sobald alle Angaben vorliegen, wird die Rechnung erzeugt und als PDF eingebettet.
+
+## Dialogbasierte Konversation
+
+Über den Endpunkt `/conversation/` lässt sich ein mehrstufiger Sprachdialog führen.
+Jede gesprochene Eingabe wird transkribiert und ausgewertet. Solange wichtige
+Rechnungsfelder fehlen, stellt der Assistent Rückfragen und liefert die nächste
+Sprachausgabe bereits als Base64-kodiertes MP3 zurück. Ist alles vollständig,
+wird die Rechnung erstellt und eine Abschlussnachricht ausgegeben. Die Weboberfläche unter `/web` nutzt diesen Ablauf und bietet eine komfortable Audio-Konversation direkt im Browser.
 
 ## Lokaler LLM (Ollama)
 
