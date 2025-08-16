@@ -1,70 +1,20 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <title>Audio Upload</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2em; }
-        button { font-size: 1.2em; margin-right: 1em; }
-        #result { margin-top: 1em; white-space: pre-wrap; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprachassistent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-<h1>Audio aufnehmen</h1>
-<button id="record">Aufnahme starten</button>
-<button id="stop" disabled>Stoppen</button>
-<div id="status"></div>
-<div id="result"></div>
-<iframe id="pdfViewer" style="width:100%;height:600px;margin-top:1em;"></iframe>
-<script src="/static/recorder.js"></script>
-<script>
-let recorder;
-let audioStream;
-const recordButton = document.getElementById('record');
-const stopButton = document.getElementById('stop');
-const statusDiv = document.getElementById('status');
-const resultDiv = document.getElementById('result');
-const pdfFrame = document.getElementById('pdfViewer');
-
-recordButton.onclick = async () => {
-    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const audioContext = new AudioContext();
-    const input = audioContext.createMediaStreamSource(audioStream);
-    recorder = new Recorder(input, { numChannels: 1 });
-    recorder.record();
-    recordButton.disabled = true;
-    stopButton.disabled = false;
-    statusDiv.textContent = 'Aufnahme läuft...';
-};
-
-stopButton.onclick = () => {
-    recorder.stop();
-    audioStream.getTracks().forEach(t => t.stop());
-    recorder.exportWAV(blob => {
-        uploadAudio(blob);
-    });
-    recordButton.disabled = false;
-    stopButton.disabled = true;
-    statusDiv.textContent = 'Verarbeite...';
-};
-
-function uploadAudio(blob) {
-    const formData = new FormData();
-    formData.append('file', blob, 'audio.wav');
-    fetch('/process-audio/', {
-        method: 'POST',
-        body: formData
-    }).then(resp => resp.json())
-      .then(data => {
-        statusDiv.textContent = '';
-        resultDiv.textContent = JSON.stringify(data, null, 2);
-        if (data.pdf_url) {
-            pdfFrame.src = data.pdf_url;
-        }
-      }).catch(err => {
-        statusDiv.textContent = 'Fehler: ' + err;
-      });
-}
-</script>
+<body class="h-screen flex flex-col bg-gray-100">
+  <header class="bg-blue-600 text-white text-center py-4 text-2xl font-semibold">Handwerker Sprachassistent</header>
+  <main id="chat" class="flex-1 overflow-y-auto p-4 space-y-4"></main>
+  <div class="p-4 bg-white flex flex-col items-center">
+    <button id="record" class="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-2xl shadow-lg transition-colors">🎤</button>
+    <p id="status" class="mt-2 text-gray-600"></p>
+    <iframe id="pdfViewer" class="w-full h-64 mt-4 hidden"></iframe>
+  </div>
+  <script src="/static/recorder.js"></script>
+  <script src="/static/conversation.js"></script>
 </body>
 </html>
