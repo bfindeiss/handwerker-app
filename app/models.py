@@ -51,6 +51,14 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
     match = re.search(r"\{.*\}", cleaned, re.DOTALL)
     if match:
         cleaned = match.group(0)
+
+    # LLM-Ausgaben sind nicht immer gültiges JSON. Häufig enthalten sie
+    # Kommentare oder überflüssige Kommata. Diese versuchen wir zu
+    # entfernen, bevor ``json.loads`` aufgerufen wird. Die Regex für
+    # Zeilenkommentare ignoriert Protokolle wie ``https://``.
+    cleaned = re.sub(r"(?<!:)//.*", "", cleaned)
+    cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.DOTALL)
+    cleaned = re.sub(r",\s*(?=[}\]])", "", cleaned)
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError as exc:  # pragma: no cover - defensive
