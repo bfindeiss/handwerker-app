@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from io import BytesIO
 import os
 import shlex
-import subprocess
+import subprocess  # nosec B404
 import tempfile
 from typing import Any
 
@@ -44,8 +44,12 @@ class CommandTranscriber(STTProvider):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
             tmp.write(audio_bytes)
             tmp.flush()
-            result = subprocess.run(
-                shlex.split(settings.stt_model) + [tmp.name],
+            command = shlex.split(settings.stt_model)
+            for token in command:
+                if token in {";", "&", "|", "&&", "||", "`", "$", ">", "<"}:
+                    raise ValueError("Unsafe token in stt_model")
+            result = subprocess.run(  # nosec B603
+                command + [tmp.name],
                 capture_output=True,
                 text=True,
                 check=True,
