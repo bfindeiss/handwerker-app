@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eunoia Conversational Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #record.recording {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+  </style>
+</head>
+<body class="h-screen bg-gradient-to-br from-indigo-600 via-sky-500 to-emerald-500 flex flex-col text-gray-900">
+  <header class="text-white text-center py-6 text-3xl font-bold tracking-wide bg-black/20 backdrop-blur-sm">
+    Eunoia Conversational Hub
+  </header>
+  <main class="flex-1 flex items-center justify-center px-4">
+    <div class="w-full max-w-3xl flex flex-col h-[80vh] bg-white/30 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden">
+      <div id="chat" class="flex-1 overflow-y-auto p-6 space-y-4"></div>
+      <div class="p-6 bg-white/40 backdrop-blur flex flex-col items-center">
+        <button id="record" class="w-20 h-20 rounded-full bg-indigo-600 text-white flex items-center justify-center text-3xl shadow-lg transition duration-300 ease-in-out hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+          🎤
+        </button>
+        <p id="status" class="mt-2 text-gray-700"></p>
+        <iframe id="pdfViewer" class="w-full h-48 mt-4 hidden rounded"></iframe>
+      </div>
+    </div>
+  </main>
+  <script src="/static/recorder.js"></script>
+  <script src="/static/conversation.js"></script>
+</body>
+</html>
