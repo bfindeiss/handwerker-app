@@ -8,6 +8,8 @@ python-multipart
 twilio
 gtts
 httpx
+PyYAML
+types-PyYAML
 pytest
 pytest-cov
 reportlab
