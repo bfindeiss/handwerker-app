@@ -104,7 +104,7 @@ def _build_prompt(transcript: str) -> str:
         "  ],\n"
         '  "amount": { "total": float, "currency": "EUR" }\n'
         "}\n\n"
-        f'Text: "{transcript}"\n'
+        f"Text:\n{transcript}\n"
         "Antworte ausschließlich mit gültigem JSON. ``items`` muss vorhanden sein; "
         "falls keine Positionen erkennbar sind, gib eine leere Liste zurück."
     )
