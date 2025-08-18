@@ -21,7 +21,10 @@ def apply_pricing(invoice: InvoiceContext) -> None:
     """
 
     for item in invoice.items:
-        if not item.unit_price:
+        if item.category == "travel":
+            # always use configured travel rate, even if a price was provided
+            item.unit_price = settings.travel_rate_per_km
+        elif not item.unit_price:
             _apply_item_price(item)
 
     net = sum(i.total for i in invoice.items)
@@ -38,9 +41,7 @@ def apply_pricing(invoice: InvoiceContext) -> None:
 
 def _apply_item_price(item: InvoiceItem) -> None:
     """Weist einer Rechnungsposition einen Standardpreis zu."""
-    if item.category == "travel":
-        item.unit_price = settings.travel_rate_per_km
-    elif item.category == "labor":
+    if item.category == "labor":
         role = (item.worker_role or "").lower()
         if "meister" in role:
             item.unit_price = settings.labor_rate_meister
