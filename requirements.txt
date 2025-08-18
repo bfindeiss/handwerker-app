@@ -19,3 +19,5 @@ pre-commit
 black
 ruff
 mypy
+sentence-transformers
+faiss-cpu
