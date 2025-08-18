@@ -65,9 +65,19 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
         raise ValueError("invalid invoice context") from exc
     try:
         data.setdefault("items", [])
-        return InvoiceContext(**data)
+        invoice = InvoiceContext(**data)
     except ValidationError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
+
+    # Nach dem Parsen prüfen wir jede Rechnungsposition auf Schlüsselwörter,
+    # die auf Reisekosten hindeuten. Wenn die Kategorie noch nicht "travel"
+    # ist, korrigieren wir sie entsprechend.
+    travel_keywords = ("anfahrt", "fahrtkosten", "kilometer")
+    for item in invoice.items:
+        desc = item.description.casefold()
+        if item.category != "travel" and any(kw in desc for kw in travel_keywords):
+            item.category = "travel"
+    return invoice
 
 
 def missing_invoice_fields(invoice: "InvoiceContext") -> list[str]:
@@ -88,4 +98,3 @@ def missing_invoice_fields(invoice: "InvoiceContext") -> list[str]:
     if invoice.amount.get("total") in (None, ""):
         missing.append("amount.total")
     return missing
-

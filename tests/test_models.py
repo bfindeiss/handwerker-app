@@ -1,3 +1,4 @@
+import json
 import pytest
 
 from app.models import (
@@ -9,7 +10,15 @@ from app.models import (
 
 
 def test_parse_invoice_context_code_fence():
-    raw = """```json\n{\n  \"type\": \"InvoiceContext\",\n  \"customer\": {},\n  \"service\": {},\n  \"items\": [],\n  \"amount\": {}\n}\n```"""
+    raw = """```json
+{
+  "type": "InvoiceContext",
+  "customer": {},
+  "service": {},
+  "items": [],
+  "amount": {}
+}
+```"""
     invoice = parse_invoice_context(raw)
     assert invoice.type == "InvoiceContext"
 
@@ -48,8 +57,34 @@ def test_parse_invoice_context_with_comments_and_trailing_commas():
     assert invoice.amount["total"] == 5
 
 
+@pytest.mark.parametrize(
+    "description",
+    ["Anfahrt zur Baustelle", "Fahrtkosten zur Baustelle", "Kilometerpauschale"],
+)
+def test_parse_invoice_context_corrects_travel_category(description: str):
+    data = {
+        "type": "InvoiceContext",
+        "customer": {},
+        "service": {},
+        "items": [
+            {
+                "description": description,
+                "category": "labor",
+                "quantity": 1,
+                "unit": "h",
+                "unit_price": 10,
+            }
+        ],
+        "amount": {},
+    }
+    invoice = parse_invoice_context(json.dumps(data))
+    assert invoice.items[0].category == "travel"
+
+
 def test_missing_invoice_fields():
-    invoice = InvoiceContext(type="InvoiceContext", customer={}, service={}, items=[], amount={})
+    invoice = InvoiceContext(
+        type="InvoiceContext", customer={}, service={}, items=[], amount={}
+    )
     missing = missing_invoice_fields(invoice)
     assert missing == ["customer.name", "service.description", "items", "amount.total"]
 
@@ -67,4 +102,3 @@ def test_missing_invoice_fields():
     )
     invoice.amount["total"] = 40
     assert missing_invoice_fields(invoice) == []
-
