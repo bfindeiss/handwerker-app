@@ -16,7 +16,7 @@ from app.settings import settings
 from app.telephony import router as telephony_router
 from app.conversation import router as conversation_router
 from app.transcriber import transcribe_audio
-from app.logging_config import configure_logging
+from app.logging_config import configure_logging, mask_pii
 
 # Einmalig beim Import die Standard-Logging-Konfiguration anwenden.
 configure_logging()
@@ -73,13 +73,13 @@ async def process_audio(file: UploadFile = File(...)):
 
     # 2) Mithilfe des konfigurierten Speech‑to‑Text‑Backends in Text umwandeln.
     transcript = transcribe_audio(audio_bytes)
-    logger.debug("Transcript: %s", transcript)
+    logger.debug("Transcript: %s", mask_pii(transcript))
 
     # 3) Das Transkript an ein LLM schicken, das daraus JSON mit
     #    Rechnungsinformationen erzeugt.
     try:
         invoice_json = extract_invoice_context(transcript)
-        logger.debug("LLM raw response: %s", invoice_json)
+        logger.debug("LLM raw response: %s", mask_pii(invoice_json))
     except HTTPException as exc:
         logger.exception("LLM backend failure: %s", exc.detail)
         raise
