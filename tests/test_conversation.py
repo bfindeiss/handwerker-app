@@ -13,7 +13,7 @@ def test_conversation_followup(monkeypatch, tmp_data_dir):
     """Asks questions until all invoice data is provided."""
     conversation.SESSIONS.clear()
 
-    transcripts = iter(["", "Hans Malen 100"])
+    transcripts = iter(["", "Hans Malen"])
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
 
     def fake_extract(text):
@@ -38,8 +38,6 @@ def test_conversation_followup(monkeypatch, tmp_data_dir):
                     "worker_role": "Geselle",
                 }
             )
-        if "100" in text:
-            data["amount"] = {"total": 100.0, "currency": "EUR"}
         return json.dumps(data)
 
     monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
@@ -61,6 +59,7 @@ def test_conversation_followup(monkeypatch, tmp_data_dir):
     data = resp.json()
     assert data["done"] is False
     assert "Wie heißt der Kunde" in data["question"]
+    assert "Gesamtbetrag" not in data["question"]
 
     resp = client.post(
         "/conversation/",
@@ -71,7 +70,9 @@ def test_conversation_followup(monkeypatch, tmp_data_dir):
     data = resp.json()
     assert data["done"] is True
     assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["invoice"]["amount"]["total"] == 47.6
     assert "Rechnung" in data["message"]
+    assert "47.6" in data["message"]
 
 
 def test_conversation_parse_error_resets_session(monkeypatch, tmp_data_dir):
