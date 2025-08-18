@@ -137,8 +137,12 @@ def test_transcribe_audio_command(monkeypatch):
     """Transcribes audio using a command line STT backend"""
     monkeypatch.setattr(transcriber.settings, "stt_provider", "command")
     monkeypatch.setattr(transcriber.settings, "stt_model", "dummycmd")
+    monkeypatch.setattr(transcriber.settings, "stt_language", "en")
+    captured: dict[str, list[str]] = {}
 
     def fake_run(cmd, capture_output=True, text=True, check=True):
+        captured["cmd"] = cmd
+
         class R:
             stdout = "hi\n"
 
@@ -147,6 +151,7 @@ def test_transcribe_audio_command(monkeypatch):
     monkeypatch.setattr(transcriber.subprocess, "run", fake_run)
     result = transcriber.transcribe_audio(b"audio")
     assert result == "hi"
+    assert captured["cmd"][:3] == ["dummycmd", "--language", "en"]
 
 
 def test_extract_invoice_context(monkeypatch):

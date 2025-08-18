@@ -64,8 +64,18 @@ cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 # z.B. "brew install ffmpeg" (macOS) oder "sudo apt install ffmpeg" (Ubuntu)
 # STT_MODEL=base
 # STT_PROMPT="Dachdecker, Hans Müller"  # optionale Begriffe/Namen für bessere Erkennung
+# STT_LANGUAGE=de  # Sprachcode für die Erkennung
 # TELEPHONY_PROVIDER=twilio|sipgate
 # TTS_PROVIDER=gtts|elevenlabs
+# Angaben zum eigenen Unternehmen auf der Rechnung
+# SUPPLIER_NAME=Beispiel GmbH
+# SUPPLIER_ADDRESS=Musterstraße 1, 12345 Musterstadt
+# SUPPLIER_VAT_ID=DE123456789
+# SUPPLIER_CONTACT=info@beispiel.de, Tel. +49 123 456789
+# Zahlungsinformationen für Kunden
+# PAYMENT_TERMS=Zahlbar innerhalb von 30 Tagen ohne Abzug
+# PAYMENT_IBAN=DE12 3456 7890 1234 5678 90
+# PAYMENT_BIC=ABCDDEFFXXX
 uvicorn app.main:app --reload
 # Weboberfläche anschließend unter http://localhost:8000/web
 ```
@@ -96,6 +106,21 @@ Der zu nutzende Rechnungsadapter kann über die Umgebungsvariable `BILLING_ADAPT
 
 Die Antwort enthält das erkannte Transkript, die extrahierten Rechnungsdaten sowie Informationen zum Speicherort der Ablage im Verzeichnis `data/`. POST `/process-audio/` mit `multipart/form-data` (`file`) gibt das erkannte Transkript sowie die extrahierte Rechnung als JSON zurück. Alle Daten werden zur Nachvollziehbarkeit im Ordner `data/` abgelegt.
 
+### Transkript-Korrekturen
+
+Häufige STT-Fehler lassen sich über eine optionale Datei
+`app/transcript_replacements.json` korrigieren. Sie definiert ein Mapping
+von falsch erkannten zu gewünschten Ausdrücken, z. B.:
+
+```json
+{
+  "Geselden": "Gesellen"
+}
+```
+
+Wird keine Datei gefunden, bleibt das Transkript unverändert. Alternativ kann
+die Datei auch als `transcript_replacements.yaml` (oder `.yml`) vorliegen.
+
 ### Weboberfläche
 
 Unter `/web` steht eine moderne, dialogbasierte Oberfläche zur Verfügung. Über das Mikrofon-Symbol lassen sich Sprachbeiträge aufzeichnen, die an den Endpunkt `/conversation/` geschickt werden. Der Assistent stellt Rückfragen, spielt sie als Audio ab und zeigt den Chatverlauf an. Sobald alle Angaben vorliegen, wird die Rechnung erzeugt und als PDF eingebettet.
@@ -107,6 +132,8 @@ Jede gesprochene Eingabe wird transkribiert und ausgewertet. Solange wichtige
 Rechnungsfelder fehlen, stellt der Assistent Rückfragen und liefert die nächste
 Sprachausgabe bereits als Base64-kodiertes MP3 zurück. Ist alles vollständig,
 wird die Rechnung erstellt und eine Abschlussnachricht ausgegeben. Die Weboberfläche unter `/web` nutzt diesen Ablauf und bietet eine komfortable Audio-Konversation direkt im Browser.
+
+Zusätzlich erkennt der Assistent einfache Konfigurationsbefehle. Mit `"Speichere meinen Firmennamen <Name>"` lässt sich der Firmenname in der Datei `.env` unter `COMPANY_NAME` ablegen; eine Bestätigung erfolgt per Text und Audio.
 
 ## Lokaler LLM (Ollama)
 

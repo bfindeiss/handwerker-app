@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from io import BytesIO
+import json
 import os
+from pathlib import Path
 import shlex
 import subprocess  # nosec B404
 import tempfile
 from typing import Any
+
+import yaml  # type: ignore
 
 from openai import OpenAI
 
@@ -34,6 +38,7 @@ class OpenAITranscriber(STTProvider):
             file=BytesIO(audio_bytes),
             response_format="text",
             prompt=settings.stt_prompt,
+            language=settings.stt_language,
         )
         return response.text if hasattr(response, "text") else str(response)
 
@@ -50,7 +55,7 @@ class CommandTranscriber(STTProvider):
                 if token in {";", "&", "|", "&&", "||", "`", "$", ">", "<"}:
                     raise ValueError("Unsafe token in stt_model")
             result = subprocess.run(  # nosec B603
-                command + [tmp.name],
+                command + ["--language", settings.stt_language, tmp.name],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -102,7 +107,7 @@ class WhisperTranscriber(STTProvider):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
             tmp.write(audio_bytes)
             tmp.flush()
-            result = self.model.transcribe(tmp.name)
+            result = self.model.transcribe(tmp.name, language=settings.stt_language)
         os.unlink(tmp.name)
         return result.get("text", "").strip()
 
@@ -131,12 +136,30 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     return _normalize_transcript(raw)
 
 
+def _load_transcript_replacements() -> dict[str, str]:
+    """Liest optionale Ersetzungstabellen aus JSON oder YAML."""
+    base = Path(__file__).with_name("transcript_replacements")
+    loaders = {
+        ".json": json.load,
+        ".yaml": yaml.safe_load,
+        ".yml": yaml.safe_load,
+    }
+    for suffix, loader in loaders.items():
+        path = base.with_suffix(suffix)
+        if path.is_file():
+            with path.open("r", encoding="utf-8") as handle:
+                data = loader(handle) or {}
+            if isinstance(data, dict):
+                return {str(k): str(v) for k, v in data.items()}
+            return {}
+    return {}
+
+
+_TRANSCRIPT_REPLACEMENTS = _load_transcript_replacements()
+
+
 def _normalize_transcript(text: str) -> str:
     """Korrigiert häufige Erkennungsfehler im Transkript."""
-    replacements = {
-        "Geselden": "Gesellen",
-        "Geseldenstunde": "Gesellenstunde",
-    }
-    for wrong, correct in replacements.items():
+    for wrong, correct in _TRANSCRIPT_REPLACEMENTS.items():
         text = text.replace(wrong, correct)
     return text

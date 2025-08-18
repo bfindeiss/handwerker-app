@@ -147,6 +147,6 @@ Austausch der Implementierungen:
 - `LLM_PROVIDER` / `LLM_MODEL` – Auswahl und Modellname des LLM (z. B. `openai`,
   `ollama`)
 - `OLLAMA_BASE_URL` – Basis-URL für einen lokalen Ollama-Server
-- `STT_PROVIDER` / `STT_MODEL` – Backend für Speech‑to‑Text (`openai` oder
-  lokales Kommando)
+- `STT_PROVIDER` / `STT_MODEL` / `STT_LANGUAGE` – Backend und Sprache für
+  Speech‑to‑Text (`openai` oder lokales Kommando)
 - `TELEPHONY_PROVIDER` – Telefonieintegration (`twilio` oder `sipgate`)
