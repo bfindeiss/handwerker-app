@@ -65,6 +65,15 @@ cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 # STT_MODEL=base
 # TELEPHONY_PROVIDER=twilio|sipgate
 # TTS_PROVIDER=gtts|elevenlabs
+# Angaben zum eigenen Unternehmen auf der Rechnung
+# SUPPLIER_NAME=Beispiel GmbH
+# SUPPLIER_ADDRESS=Musterstraße 1, 12345 Musterstadt
+# SUPPLIER_VAT_ID=DE123456789
+# SUPPLIER_CONTACT=info@beispiel.de, Tel. +49 123 456789
+# Zahlungsinformationen für Kunden
+# PAYMENT_TERMS=Zahlbar innerhalb von 30 Tagen ohne Abzug
+# PAYMENT_IBAN=DE12 3456 7890 1234 5678 90
+# PAYMENT_BIC=ABCDDEFFXXX
 uvicorn app.main:app --reload
 # Weboberfläche anschließend unter http://localhost:8000/web
 ```

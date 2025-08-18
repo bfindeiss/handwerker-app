@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     # Umsatzsteuersatz (z. B. 0.19 für 19 % MwSt.)
     vat_rate: float = 0.19
 
+    # Angaben zum Rechnungsersteller
+    supplier_name: str = "Beispiel GmbH"
+    supplier_address: str = "Musterstraße 1, 12345 Musterstadt"
+    supplier_vat_id: str = "DE123456789"
+    supplier_contact: str = "info@beispiel.de, Tel. +49 123 456789"
+
+    # Zahlungsinformationen
+    payment_terms: str = "Zahlbar innerhalb von 30 Tagen ohne Abzug"
+    payment_iban: str = "DE12 3456 7890 1234 5678 90"
+    payment_bic: str = "ABCDDEFFXXX"
+
     # Verhalten beim Start, falls das LLM nicht erreichbar ist
     fail_on_llm_unavailable: bool = False
 
