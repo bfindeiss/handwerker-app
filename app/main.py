@@ -1,7 +1,8 @@
 import logging
 from pathlib import Path
+from uuid import uuid4
 
-from fastapi import File, HTTPException, UploadFile, FastAPI
+from fastapi import File, HTTPException, UploadFile, FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,6 +18,7 @@ from app.telephony import router as telephony_router
 from app.conversation import router as conversation_router
 from app.transcriber import transcribe_audio
 from app.logging_config import configure_logging
+from app.request_id import request_id_ctx_var
 
 # Einmalig beim Import die Standard-Logging-Konfiguration anwenden.
 configure_logging()
@@ -25,6 +27,20 @@ logger = logging.getLogger(__name__)
 # Globale FastAPI-App anlegen und statische Dateien sowie Telefonie-Routen
 # registrieren.
 app = FastAPI()
+
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = str(uuid4())
+    token = request_id_ctx_var.set(request_id)
+    try:
+        response = await call_next(request)
+    finally:
+        request_id_ctx_var.reset(token)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # Sitzungsartefakte (z. B. generierte PDFs) unter /data verfügbar machen.
 app.mount("/data", StaticFiles(directory="data"), name="data")
