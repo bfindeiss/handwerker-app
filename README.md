@@ -63,6 +63,7 @@ cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 # Für whisper/command muss ffmpeg als System-Binary installiert sein
 # z.B. "brew install ffmpeg" (macOS) oder "sudo apt install ffmpeg" (Ubuntu)
 # STT_MODEL=base
+# STT_PROMPT="Dachdecker, Hans Müller"  # optionale Begriffe/Namen für bessere Erkennung
 # STT_LANGUAGE=de  # Sprachcode für die Erkennung
 # TELEPHONY_PROVIDER=twilio|sipgate
 # TTS_PROVIDER=gtts|elevenlabs
@@ -78,6 +79,8 @@ cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 uvicorn app.main:app --reload
 # Weboberfläche anschließend unter http://localhost:8000/web
 ```
+
+`STT_PROMPT` in der `.env` erlaubt es, branchenspezifische Begriffe oder Namen für die Spracherkennung vorzugeben.
 
 ## Telefonie konfigurieren
 

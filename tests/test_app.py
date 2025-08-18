@@ -88,6 +88,40 @@ def test_transcribe_audio(monkeypatch):
     assert result == "hallo"
 
 
+def test_transcribe_audio_prompt(monkeypatch):
+    """Forwards prompt to OpenAI STT"""
+    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
+    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
+    monkeypatch.setattr(transcriber.settings, "stt_prompt", "Baustelle")
+
+    captured: dict[str, object] = {}
+
+    class DummyOpenAIWithPrompt:
+        class Audio:
+            def __init__(self, parent):
+                self.parent = parent
+
+            class Transcriptions:
+                def __init__(self, parent):
+                    self.parent = parent
+
+                def create(self, **kwargs):
+                    captured.update(kwargs)
+                    return DummyResponse("hallo")
+
+            @property
+            def transcriptions(self):
+                return DummyOpenAIWithPrompt.Audio.Transcriptions(self)
+
+        @property
+        def audio(self):
+            return DummyOpenAIWithPrompt.Audio(self)
+
+    monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAIWithPrompt())
+    transcriber.transcribe_audio(b"audio")
+    assert captured["prompt"] == "Baustelle"
+
+
 def test_transcribe_audio_normalized(monkeypatch):
     """Normalisiert häufige Erkennungsfehler im Transkript."""
     monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")

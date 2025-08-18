@@ -37,6 +37,7 @@ class OpenAITranscriber(STTProvider):
             model=settings.stt_model,
             file=BytesIO(audio_bytes),
             response_format="text",
+            prompt=settings.stt_prompt,
             language=settings.stt_language,
         )
         return response.text if hasattr(response, "text") else str(response)
