@@ -7,6 +7,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from app.models import InvoiceContext
+from app.invoice_template import format_invoice_lines
 
 
 def _write_lines(c: canvas.Canvas, lines: Iterable[str]) -> None:
@@ -31,19 +32,7 @@ def generate_invoice_pdf(invoice: InvoiceContext, file_path: Path) -> None:
     c.setAuthor("Handwerker App")
     c.setSubject("E-Rechnung")
 
-    lines = [
-        f"Rechnungsnummer: {invoice.invoice_number or ''}",
-        f"Datum: {invoice.issue_date or ''}",
-        f"Kunde: {invoice.customer.get('name', '')}",
-        f"Leistung: {invoice.service.get('description', '')}",
-        "Positionen:",
-    ]
-    for item in invoice.items:
-        lines.append(
-            f" - {item.description}: {item.quantity} {item.unit} x "
-            f"{item.unit_price} EUR"
-        )
-    lines.append(f"Gesamt: {invoice.amount.get('total', 0)} EUR")
+    lines = format_invoice_lines(invoice)
 
     _write_lines(c, lines)
     c.showPage()
