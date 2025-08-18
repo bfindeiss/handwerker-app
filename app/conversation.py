@@ -8,7 +8,11 @@ from fastapi import APIRouter, UploadFile, File, Form
 
 from app.transcriber import transcribe_audio
 from app.llm_agent import extract_invoice_context
-from app.models import parse_invoice_context, InvoiceContext
+from app.models import (
+    InvoiceContext,
+    parse_invoice_context,
+    missing_invoice_fields,
+)
 from app.pricing import apply_pricing
 from app.service_estimations import estimate_labor_item
 from app.tts import text_to_speech
@@ -23,6 +27,7 @@ SESSIONS: Dict[str, str] = {}
 
 def fill_default_fields(invoice: InvoiceContext) -> None:
     """Füllt fehlende Pflichtfelder mit Platzhaltern."""
+    """Ergänzt Platzhalter für optionale Felder."""
     if not invoice.customer.get("name"):
         invoice.customer["name"] = "Unbekannter Kunde"
     if not invoice.service.get("description"):
@@ -57,6 +62,39 @@ async def voice_conversation(
             estimate_labor_item(invoice.service.get("description", ""))
         )
     apply_pricing(invoice)
+        audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
+        return {
+            "done": False,
+            "question": question,
+            "audio": audio_b64,
+            "transcript": full_transcript,
+        }
+    else:
+        fill_default_fields(invoice)
+        if not any(i.category == "labor" for i in invoice.items):
+            invoice.items.append(
+                estimate_labor_item(invoice.service.get("description", ""))
+            )
+        apply_pricing(invoice)
+        missing = missing_invoice_fields(invoice)
+
+    if missing:
+        question_map = {
+            "customer.name": "Wie heißt der Kunde?",
+            "service.description": "Welche Dienstleistung wurde erbracht?",
+            "amount.total": "Wie hoch ist der Gesamtbetrag?",
+            "items": "Welche Positionen wurden abgerechnet?",
+        }
+        question = question_map.get(missing[0], missing[0])
+        audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
+        return {
+            "done": False,
+            "question": question,
+            "audio": audio_b64,
+            "transcript": full_transcript,
+        }
+
+    # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
     send_to_billing_system(invoice)
     log_dir = store_interaction(audio_bytes, full_transcript, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
