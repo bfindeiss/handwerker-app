@@ -61,8 +61,8 @@ def read_root():
 
 @app.get("/web")
 def web_interface():
-    """Serve simple HTML interface for recording and uploading audio."""
-    return FileResponse("app/static/index.html")
+    """Serve unified HTML interface for recording and uploading audio."""
+    return FileResponse("app/static/eunoia.html")
 
 
 @app.post("/process-audio/")
