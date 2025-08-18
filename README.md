@@ -93,6 +93,21 @@ Der zu nutzende Rechnungsadapter kann über die Umgebungsvariable `BILLING_ADAPT
 
 Die Antwort enthält das erkannte Transkript, die extrahierten Rechnungsdaten sowie Informationen zum Speicherort der Ablage im Verzeichnis `data/`. POST `/process-audio/` mit `multipart/form-data` (`file`) gibt das erkannte Transkript sowie die extrahierte Rechnung als JSON zurück. Alle Daten werden zur Nachvollziehbarkeit im Ordner `data/` abgelegt.
 
+### Transkript-Korrekturen
+
+Häufige STT-Fehler lassen sich über eine optionale Datei
+`app/transcript_replacements.json` korrigieren. Sie definiert ein Mapping
+von falsch erkannten zu gewünschten Ausdrücken, z. B.:
+
+```json
+{
+  "Geselden": "Gesellen"
+}
+```
+
+Wird keine Datei gefunden, bleibt das Transkript unverändert. Alternativ kann
+die Datei auch als `transcript_replacements.yaml` (oder `.yml`) vorliegen.
+
 ### Weboberfläche
 
 Unter `/web` steht eine moderne, dialogbasierte Oberfläche zur Verfügung. Über das Mikrofon-Symbol lassen sich Sprachbeiträge aufzeichnen, die an den Endpunkt `/conversation/` geschickt werden. Der Assistent stellt Rückfragen, spielt sie als Audio ab und zeigt den Chatverlauf an. Sobald alle Angaben vorliegen, wird die Rechnung erzeugt und als PDF eingebettet.

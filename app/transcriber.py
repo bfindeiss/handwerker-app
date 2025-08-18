@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from io import BytesIO
+import json
 import os
+from pathlib import Path
 import shlex
 import subprocess  # nosec B404
 import tempfile
 from typing import Any
+
+import yaml  # type: ignore
 
 from openai import OpenAI
 
@@ -130,12 +134,30 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     return _normalize_transcript(raw)
 
 
+def _load_transcript_replacements() -> dict[str, str]:
+    """Liest optionale Ersetzungstabellen aus JSON oder YAML."""
+    base = Path(__file__).with_name("transcript_replacements")
+    loaders = {
+        ".json": json.load,
+        ".yaml": yaml.safe_load,
+        ".yml": yaml.safe_load,
+    }
+    for suffix, loader in loaders.items():
+        path = base.with_suffix(suffix)
+        if path.is_file():
+            with path.open("r", encoding="utf-8") as handle:
+                data = loader(handle) or {}
+            if isinstance(data, dict):
+                return {str(k): str(v) for k, v in data.items()}
+            return {}
+    return {}
+
+
+_TRANSCRIPT_REPLACEMENTS = _load_transcript_replacements()
+
+
 def _normalize_transcript(text: str) -> str:
     """Korrigiert häufige Erkennungsfehler im Transkript."""
-    replacements = {
-        "Geselden": "Gesellen",
-        "Geseldenstunde": "Gesellenstunde",
-    }
-    for wrong, correct in replacements.items():
+    for wrong, correct in _TRANSCRIPT_REPLACEMENTS.items():
         text = text.replace(wrong, correct)
     return text
