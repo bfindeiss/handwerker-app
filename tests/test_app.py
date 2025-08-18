@@ -92,7 +92,9 @@ def test_transcribe_audio_normalized(monkeypatch):
     """Normalisiert häufige Erkennungsfehler im Transkript."""
     monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
     monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
-    monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAI("eine Geseldenstunde"))
+    monkeypatch.setattr(
+        transcriber, "OpenAI", lambda: DummyOpenAI("eine Geseldenstunde")
+    )
     result = transcriber.transcribe_audio(b"audio")
     assert result == "eine Gesellenstunde"
 
@@ -146,6 +148,8 @@ def test_extract_invoice_context_ollama(monkeypatch):
     monkeypatch.setattr(llm_agent.settings, "llm_model", "test")
 
     def fake_post(url, json=None, timeout=60):
+        assert json["format"] == "json"
+
         class Resp:
             status_code = 200
 
