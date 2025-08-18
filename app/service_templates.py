@@ -10,6 +10,11 @@ Beispielschlüssel:
     - ``dusche``/``duschkabine``: Einbau oder Austausch einer Dusche.
     - ``dusche_einbauen``: Einbau einer neuen Dusche (Arbeitszeit und Material).
     - ``fenster_setzen``: Setzen eines Fensters.
+
+Diese Datei definiert einfache Beispielvorlagen, die für automatische
+Schätzungen von Rechnungspositionen verwendet werden können. Die
+Struktur ist absichtlich simpel gehalten und dient lediglich für Tests
+und Demonstrationen.
 """
 
 from __future__ import annotations
@@ -75,7 +80,6 @@ SHOWER_TEMPLATE: List[Dict[str, Any]] = [
     },
 ]
 
-
 # Mapping von Dienstleistungsschlüsseln zu Listen von ``InvoiceItem``-Feldern.
 SERVICE_TEMPLATES: Dict[str, List[Dict[str, Any]]] = {
     "malen": PAINTING_TEMPLATE,
@@ -135,3 +139,5 @@ def load_service_templates(path: str) -> Dict[str, List[Dict[str, Any]]]:
             raise RuntimeError("PyYAML ist nicht installiert")
         return yaml.safe_load(data)
     return json.loads(data)
+
+}
