@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 from app.models import InvoiceContext, InvoiceItem
 from app.settings import settings
+from app.materials import lookup_material_price
 
 
 def apply_pricing(invoice: InvoiceContext) -> None:
@@ -23,7 +24,11 @@ def apply_pricing(invoice: InvoiceContext) -> None:
         if not item.unit_price:
             _apply_item_price(item)
 
-    invoice.amount["total"] = sum(i.total for i in invoice.items)
+    net = sum(i.total for i in invoice.items)
+    tax = round(net * settings.vat_rate, 2)
+    invoice.amount["net"] = net
+    invoice.amount["tax"] = tax
+    invoice.amount["total"] = net + tax
 
     if not invoice.invoice_number:
         invoice.invoice_number = f"INV-{datetime.utcnow():%Y%m%d%H%M%S}"
@@ -44,7 +49,10 @@ def _apply_item_price(item: InvoiceItem) -> None:
         else:
             item.unit_price = settings.labor_rate_default
     elif item.category == "material":
-        if settings.material_rate_default is not None:
+        price = lookup_material_price(item.description)
+        if price is not None:
+            item.unit_price = price
+        elif settings.material_rate_default is not None:
             item.unit_price = settings.material_rate_default
         else:
             raise HTTPException(

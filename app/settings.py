@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     labor_rate_meister: float = 70.0
     labor_rate_default: float = 60.0
     material_rate_default: float | None = None
+    # Umsatzsteuersatz (z. B. 0.19 für 19 % MwSt.)
+    vat_rate: float = 0.19
 
     # Verhalten beim Start, falls das LLM nicht erreichbar ist
     fail_on_llm_unavailable: bool = False

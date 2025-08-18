@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 from app.models import InvoiceContext
 from app.pdf import generate_invoice_pdf
+from app.xrechnung import generate_xrechnung_xml
 
 DATA_DIR = Path("data")
 # Alle Sitzungen werden in diesem Verzeichnis abgelegt.
@@ -25,4 +26,5 @@ def store_interaction(audio: bytes, transcript: str, invoice: InvoiceContext) ->
         encoding="utf-8",
     )
     generate_invoice_pdf(invoice, session_dir / "invoice.pdf")
+    generate_xrechnung_xml(invoice, session_dir / "invoice.xml")
     return str(session_dir)
