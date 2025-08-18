@@ -1,74 +1,19 @@
-"""Vorlagen für typische Dienstleistungen.
-
-Diese Datei definiert einfache Beispielvorlagen, die für automatische
-Schätzungen von Rechnungspositionen verwendet werden können. Die
-Struktur ist absichtlich simpel gehalten und dient lediglich für Tests
-und Demonstrationen.
-"""
+"""Lädt Standardleistungen für typische Handwerkerarbeiten."""
 
 from __future__ import annotations
 
-from typing import Dict, List
+from pathlib import Path
+from typing import Any
+import yaml  # type: ignore[import-untyped]
 
-# Jede Vorlage ist eine Liste von Dictionaries, die direkt in
-# ``InvoiceItem``-Objekte umgewandelt werden können.
+TEMPLATES_PATH = Path(__file__).with_suffix(".yaml")
 
-PAINTING_TEMPLATE: List[dict] = [
-    {
-        "description": "Farbe",
-        "category": "material",
-        "quantity": 1.0,
-        "unit": "stk",
-        "unit_price": 0.0,
-    },
-    {
-        "description": "Anfahrt",
-        "category": "travel",
-        "quantity": 10.0,
-        "unit": "km",
-        "unit_price": 0.0,
-    },
-    {
-        "description": "Arbeitszeit Geselle",
-        "category": "labor",
-        "quantity": 4.0,
-        "unit": "h",
-        "unit_price": 0.0,
-        "worker_role": "Geselle",
-    },
-]
 
-SHOWER_TEMPLATE: List[dict] = [
-    {
-        "description": "Duschkabine",
-        "category": "material",
-        "quantity": 1.0,
-        "unit": "stk",
-        "unit_price": 0.0,
-    },
-    {
-        "description": "Anfahrt",
-        "category": "travel",
-        "quantity": 15.0,
-        "unit": "km",
-        "unit_price": 0.0,
-    },
-    {
-        "description": "Arbeitszeit Geselle",
-        "category": "labor",
-        "quantity": 8.0,
-        "unit": "h",
-        "unit_price": 0.0,
-        "worker_role": "Geselle",
-    },
-]
+def load_templates() -> dict[str, list[dict[str, Any]]]:
+    """Lädt die Service-Templates aus der YAML-Datei."""
+    with TEMPLATES_PATH.open("r", encoding="utf-8") as fh:
+        return yaml.safe_load(fh) or {}
 
-# Mapping von Schlüsselwörtern zu den entsprechenden Vorlagen. Enthält
-# bewusst mehrere Einträge, damit unterschiedliche Begriffe auf die
-# gleiche Vorlage verweisen können.
-SERVICE_TEMPLATES: Dict[str, List[dict]] = {
-    "malen": PAINTING_TEMPLATE,
-    "streichen": PAINTING_TEMPLATE,
-    "dusche": SHOWER_TEMPLATE,
-    "duschkabine": SHOWER_TEMPLATE,
-}
+
+# Geladene Templates als Konstante bereitstellen
+SERVICE_TEMPLATES: dict[str, list[dict[str, Any]]] = load_templates()

@@ -1,0 +1,111 @@
+# Standardleistungen für Handwerkerarbeiten (Beispieldaten)
+dusche_einbauen:
+  - description: "Arbeitszeit Installateur"
+    category: "labor"
+    unit: "h"
+    quantity: 8
+    unit_price: 55
+    worker_role: "Installateur"
+  - description: "Duschwanne 90x90 cm"
+    category: "material"
+    unit: "Stk"
+    quantity: 1
+    unit_price: 250
+  - description: "Duscharmatur"
+    category: "material"
+    unit: "Stk"
+    quantity: 1
+    unit_price: 120
+  - description: "Anfahrtspauschale"
+    category: "service"
+    unit: "Pauschale"
+    quantity: 1
+    unit_price: 50
+
+fenster_setzen:
+  - description: "Arbeitszeit Monteur"
+    category: "labor"
+    unit: "h"
+    quantity: 5
+    unit_price: 50
+    worker_role: "Monteur"
+  - description: "Kunststofffenster 100x120 cm"
+    category: "material"
+    unit: "Stk"
+    quantity: 1
+    unit_price: 450
+  - description: "Montagematerial"
+    category: "material"
+    unit: "Paket"
+    quantity: 1
+    unit_price: 40
+  - description: "Anfahrtspauschale"
+    category: "service"
+    unit: "Pauschale"
+    quantity: 1
+    unit_price: 50
+
+laminat_verlegen:
+  - description: "Arbeitszeit Bodenleger"
+    category: "labor"
+    unit: "h"
+    quantity: 6
+    unit_price: 45
+    worker_role: "Bodenleger"
+  - description: "Laminatboden"
+    category: "material"
+    unit: "m^2"
+    quantity: 20
+    unit_price: 20
+  - description: "Sockelleisten"
+    category: "material"
+    unit: "m"
+    quantity: 20
+    unit_price: 3
+  - description: "Anfahrtspauschale"
+    category: "service"
+    unit: "Pauschale"
+    quantity: 1
+    unit_price: 50
+
+steckdose_installieren:
+  - description: "Arbeitszeit Elektriker"
+    category: "labor"
+    unit: "h"
+    quantity: 1.5
+    unit_price: 60
+    worker_role: "Elektriker"
+  - description: "Schuko-Steckdose"
+    category: "material"
+    unit: "Stk"
+    quantity: 1
+    unit_price: 8
+  - description: "Installationsmaterial"
+    category: "material"
+    unit: "Paket"
+    quantity: 1
+    unit_price: 5
+  - description: "Anfahrtspauschale"
+    category: "service"
+    unit: "Pauschale"
+    quantity: 1
+    unit_price: 40
+
+waende_streichen:
+  - description: "Farbe"
+    category: "material"
+    unit: "Stk"
+    quantity: 1
+    unit_price: 0
+  - description: "Anfahrt"
+    category: "travel"
+    unit: "km"
+    quantity: 10
+    unit_price: 0
+  - description: "Arbeitszeit Geselle"
+    category: "labor"
+    unit: "h"
+    quantity: 4
+    unit_price: 0
+    worker_role: "Geselle"
+
