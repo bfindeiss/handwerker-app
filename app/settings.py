@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     ollama_timeout: float = 300.0
     stt_provider: str = "openai"
     stt_model: str = "whisper-1"
+    stt_language: str = "de"
 
     # Telefonie und Sprachausgabe
     telephony_provider: str = "twilio"

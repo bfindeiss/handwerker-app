@@ -33,6 +33,7 @@ class OpenAITranscriber(STTProvider):
             model=settings.stt_model,
             file=BytesIO(audio_bytes),
             response_format="text",
+            language=settings.stt_language,
         )
         return response.text if hasattr(response, "text") else str(response)
 
@@ -49,7 +50,7 @@ class CommandTranscriber(STTProvider):
                 if token in {";", "&", "|", "&&", "||", "`", "$", ">", "<"}:
                     raise ValueError("Unsafe token in stt_model")
             result = subprocess.run(  # nosec B603
-                command + [tmp.name],
+                command + ["--language", settings.stt_language, tmp.name],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -101,7 +102,7 @@ class WhisperTranscriber(STTProvider):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
             tmp.write(audio_bytes)
             tmp.flush()
-            result = self.model.transcribe(tmp.name)
+            result = self.model.transcribe(tmp.name, language=settings.stt_language)
         os.unlink(tmp.name)
         return result.get("text", "").strip()
 

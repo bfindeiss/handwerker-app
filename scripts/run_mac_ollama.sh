@@ -36,6 +36,7 @@ fi
 
 export STT_PROVIDER=$STT_PROVIDER_DEFAULT
 export STT_MODEL=${STT_MODEL:-base}
+export STT_LANGUAGE=${STT_LANGUAGE:-de}
 
 # Ollama-Server im Hintergrund starten
 ollama serve &
