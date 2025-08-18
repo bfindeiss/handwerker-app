@@ -12,26 +12,6 @@ import app.conversation as conversation  # noqa: E402
 def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     """Generates a provisional invoice even with sparse input."""
     conversation.SESSIONS.clear()
-    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Einbau Dusche")
-
-    def fake_extract(text):
-        return json.dumps(
-            {
-                "type": "InvoiceContext",
-                "customer": {},
-                "service": {"description": "Einbau einer Dusche"},
-                "items": [
-                    {
-                        "description": "Duschset",
-                        "category": "material",
-                        "quantity": 1,
-                        "unit": "stk",
-                        "unit_price": 300,
-                    }
-                ],
-                "amount": {},
-            }
-        )
 
     transcripts = iter(["", "Hans Malen"])
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
@@ -68,9 +48,10 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
 
     client = TestClient(app)
+    session_id = "abc"
     resp = client.post(
         "/conversation/",
-        data={"session_id": "abc"},
+        data={"session_id": session_id},
         files={"file": ("audio.wav", b"data")},
     )
     assert resp.status_code == 200
@@ -98,6 +79,7 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     assert "Rechnung" in data["message"]
     assert "47.6" in data["message"]
 
+
 def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     """Even on parse errors a provisional invoice is returned."""
     conversation.SESSIONS.clear()
@@ -121,11 +103,14 @@ def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
     assert any(item["category"] == "labor" for item in data["invoice"]["items"])
 
+
 def test_conversation_defaults(monkeypatch, tmp_data_dir):
     """Missing customer/service fields are filled with placeholders."""
     conversation.SESSIONS.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Malen 100")
+
+
 def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
     """Missing labor positions should be estimated automatically."""
     conversation.SESSIONS.clear()

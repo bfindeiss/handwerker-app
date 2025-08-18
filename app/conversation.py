@@ -1,33 +1,35 @@
+"""Dialogbasierte Erfassung von Rechnungsdaten."""
+
 from __future__ import annotations
 
 import base64
-from typing import Dict
 from pathlib import Path
+from typing import Dict
 
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, File, Form, UploadFile
 
-from app.transcriber import transcribe_audio
+from app.billing_adapter import send_to_billing_system
 from app.llm_agent import extract_invoice_context
 from app.models import (
     InvoiceContext,
-    parse_invoice_context,
     missing_invoice_fields,
+    parse_invoice_context,
 )
+from app.persistence import store_interaction
 from app.pricing import apply_pricing
 from app.service_estimations import estimate_labor_item
+from app.transcriber import transcribe_audio
 from app.tts import text_to_speech
-from app.billing_adapter import send_to_billing_system
-from app.persistence import store_interaction
 
 router = APIRouter()
 
-# Zwischenspeicher für laufende Konversationen.
+# Zwischenspeicher für laufende Konversationen
 SESSIONS: Dict[str, str] = {}
 
 
 def fill_default_fields(invoice: InvoiceContext) -> None:
-    """Füllt fehlende Pflichtfelder mit Platzhaltern."""
-    """Ergänzt Platzhalter für optionale Felder."""
+    """Ergänzt fehlende Pflichtfelder durch Platzhalter."""
+
     if not invoice.customer.get("name"):
         invoice.customer["name"] = "Unbekannter Kunde"
     if not invoice.service.get("description"):
@@ -40,6 +42,7 @@ async def voice_conversation(
     file: UploadFile = File(...),
 ):
     """Führt eine dialogorientierte Aufnahme durch."""
+
     audio_bytes = await file.read()
 
     # Neues Transkript zur Session hinzufügen.
@@ -56,56 +59,54 @@ async def voice_conversation(
             type="InvoiceContext", customer={}, service={}, items=[], amount={}
         )
 
+    # Fehlende Felder vor dem Ausfüllen ermitteln.
+    missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
+    # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
+    if set(missing).issubset({"customer.name", "service.description"}):
+        missing = []
+
+    # Platzhalter und geschätzte Arbeitszeit ergänzen.
     fill_default_fields(invoice)
     if not any(item.category == "labor" for item in invoice.items):
         invoice.items.append(
             estimate_labor_item(invoice.service.get("description", ""))
         )
-        apply_pricing(invoice)
-        audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
-        return {
-            "done": False,
-            "question": question,
-            "audio": audio_b64,
-            "transcript": full_transcript,
-        }
-    else:
-        fill_default_fields(invoice)
-        if not any(i.category == "labor" for i in invoice.items):
-            invoice.items.append(
-                estimate_labor_item(invoice.service.get("description", ""))
-            )
-        apply_pricing(invoice)
-        missing = missing_invoice_fields(invoice)
+
+    apply_pricing(invoice)
+
+    log_dir = store_interaction(audio_bytes, full_transcript, invoice)
+    pdf_path = str(Path(log_dir) / "invoice.pdf")
+    pdf_url = "/" + pdf_path.replace("\\", "/")
 
     if missing:
         question_map = {
             "customer.name": "Wie heißt der Kunde?",
             "service.description": "Welche Dienstleistung wurde erbracht?",
-            "amount.total": "Wie hoch ist der Gesamtbetrag?",
             "items": "Welche Positionen wurden abgerechnet?",
         }
-        question = question_map.get(missing[0], missing[0])
+        question_lines = [question_map.get(f, f) for f in missing]
+        question = "\n".join(question_lines)
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
             "question": question,
             "audio": audio_b64,
             "transcript": full_transcript,
+            "invoice": invoice.model_dump(mode="json"),
+            "log_dir": log_dir,
+            "pdf_path": pdf_path,
+            "pdf_url": pdf_url,
         }
 
     # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
     send_to_billing_system(invoice)
-    log_dir = store_interaction(audio_bytes, full_transcript, invoice)
-    pdf_path = str(Path(log_dir) / "invoice.pdf")
-    pdf_url = "/" + pdf_path.replace("\\", "/")
     message = (
         "Vorläufige Rechnung für "
         f"{invoice.customer['name']} über {invoice.amount['total']} Euro erstellt."
     )
     audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
     return {
-        "done": False,
+        "done": True,
         "message": message,
         "audio": audio_b64,
         "invoice": invoice.model_dump(mode="json"),
