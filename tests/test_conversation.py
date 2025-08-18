@@ -104,6 +104,33 @@ def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     assert any(item["category"] == "labor" for item in data["invoice"]["items"])
 
 
+def test_conversation_store_company_name(monkeypatch, tmp_path):
+    """Recognizes command to store company name in .env."""
+    conversation.SESSIONS.clear()
+    env_file = tmp_path / ".env"
+    monkeypatch.setattr(conversation, "ENV_PATH", env_file)
+    monkeypatch.setattr(
+        conversation,
+        "transcribe_audio",
+        lambda b: "Speichere meinen Firmennamen Beispiel GmbH",
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": "cfg"},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert "gespeichert" in data["message"].lower()
+    assert (
+        env_file.read_text(encoding="utf-8").strip() == 'COMPANY_NAME="Beispiel GmbH"'
+    )
+
+
 def test_conversation_defaults(monkeypatch, tmp_data_dir):
     """Missing customer/service fields are filled with placeholders."""
     conversation.SESSIONS.clear()

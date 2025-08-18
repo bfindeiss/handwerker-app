@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from pathlib import Path
 from typing import Dict
 
@@ -26,6 +27,30 @@ router = APIRouter()
 # Zwischenspeicher für laufende Konversationen
 SESSIONS: Dict[str, str] = {}
 
+# Pfad zur Konfigurationsdatei
+ENV_PATH = Path(".env")
+
+
+def _save_env_value(key: str, value: str) -> None:
+    """Persistiert einen Schlüssel-Wert-Paar in ``.env``."""
+
+    lines = []
+    if ENV_PATH.exists():
+        lines = ENV_PATH.read_text(encoding="utf-8").splitlines()
+
+    prefix = f"{key}="
+    replaced = False
+    for idx, line in enumerate(lines):
+        if line.startswith(prefix):
+            lines[idx] = f'{prefix}"{value}"'
+            replaced = True
+            break
+
+    if not replaced:
+        lines.append(f'{prefix}"{value}"')
+
+    ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
 
 def fill_default_fields(invoice: InvoiceContext) -> None:
     """Ergänzt fehlende Pflichtfelder durch Platzhalter."""
@@ -44,9 +69,30 @@ async def voice_conversation(
     """Führt eine dialogorientierte Aufnahme durch."""
 
     audio_bytes = await file.read()
+    transcript_part = transcribe_audio(audio_bytes)
+
+    # Prüft auf Konfigurationsbefehle wie "Speichere meinen Firmennamen".
+    m = re.search(
+        r"speichere meinen firmennamen(?: (?P<name>.+))?",
+        transcript_part,
+        re.IGNORECASE,
+    )
+    if m:
+        company = (m.group("name") or "").strip()
+        if company:
+            _save_env_value("COMPANY_NAME", company)
+            message = f"Firmenname {company} gespeichert."
+        else:
+            message = "Kein Firmenname erkannt."
+        audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+        return {
+            "done": False,
+            "message": message,
+            "audio": audio_b64,
+            "transcript": SESSIONS.get(session_id, ""),
+        }
 
     # Neues Transkript zur Session hinzufügen.
-    transcript_part = transcribe_audio(audio_bytes)
     full_transcript = (SESSIONS.get(session_id, "") + " " + transcript_part).strip()
     SESSIONS[session_id] = full_transcript
 

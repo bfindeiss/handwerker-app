@@ -130,6 +130,8 @@ Rechnungsfelder fehlen, stellt der Assistent Rückfragen und liefert die nächst
 Sprachausgabe bereits als Base64-kodiertes MP3 zurück. Ist alles vollständig,
 wird die Rechnung erstellt und eine Abschlussnachricht ausgegeben. Die Weboberfläche unter `/web` nutzt diesen Ablauf und bietet eine komfortable Audio-Konversation direkt im Browser.
 
+Zusätzlich erkennt der Assistent einfache Konfigurationsbefehle. Mit `"Speichere meinen Firmennamen <Name>"` lässt sich der Firmenname in der Datei `.env` unter `COMPANY_NAME` ablegen; eine Bestätigung erfolgt per Text und Audio.
+
 ## Lokaler LLM (Ollama)
 
 Um ein lokales Modell über Ollama zu nutzen, muss zunächst der Ollama Server laufen:
