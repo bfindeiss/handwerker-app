@@ -8,6 +8,8 @@ from fastapi import APIRouter, UploadFile, File, Form
 from app.transcriber import transcribe_audio
 from app.llm_agent import extract_invoice_context
 from app.models import parse_invoice_context, missing_invoice_fields
+from app.pricing import apply_pricing
+from app.service_estimations import estimate_labor_item
 from app.tts import text_to_speech
 from app.billing_adapter import send_to_billing_system
 from app.persistence import store_interaction
@@ -53,6 +55,11 @@ async def voice_conversation(
             "transcript": full_transcript,
         }
     else:
+        if not any(i.category == "labor" for i in invoice.items):
+            invoice.items.append(
+                estimate_labor_item(invoice.service.get("description", ""))
+            )
+        apply_pricing(invoice)
         missing = missing_invoice_fields(invoice)
 
     if missing:

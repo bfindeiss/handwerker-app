@@ -133,3 +133,46 @@ def test_conversation_parse_error_resets_session(monkeypatch, tmp_data_dir):
     data = resp.json()
     assert data["done"] is True
     assert data["invoice"]["customer"]["name"] == "Hans"
+
+
+def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
+    """Missing labor positions should be estimated automatically."""
+    conversation.SESSIONS.clear()
+
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Hans Dusche")
+
+    def fake_extract(text):
+        return json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {"name": "Hans"},
+                "service": {
+                    "description": "Einbau einer Dusche",
+                    "materialIncluded": True,
+                },
+                "items": [],
+                "amount": {},
+            }
+        )
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    session_id = "labor"
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is True
+    labor_items = [i for i in data["invoice"]["items"] if i["category"] == "labor"]
+    assert labor_items, "labor item missing"
+    assert labor_items[0]["quantity"] == 8.0
+    assert data["invoice"]["amount"]["total"] > 0
