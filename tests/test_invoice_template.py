@@ -2,6 +2,7 @@ from datetime import date
 
 from app.invoice_template import format_invoice_lines
 from app.models import InvoiceContext, InvoiceItem
+from app.settings import settings
 
 
 def _sample_invoice() -> InvoiceContext:
@@ -31,11 +32,16 @@ def _sample_invoice() -> InvoiceContext:
     )
 
 
-def test_format_invoice_contains_required_sections():
+def test_format_invoice_contains_required_sections(monkeypatch):
     invoice = _sample_invoice()
+    monkeypatch.setattr(settings, "supplier_name", "Test GmbH")
+    monkeypatch.setattr(settings, "payment_iban", "DE00 0000 0000 0000 0000 00")
+    monkeypatch.setattr(settings, "payment_bic", "TESTDEFFXXX")
     lines = format_invoice_lines(invoice)
     text = "\n".join(lines)
     assert "Rechnung" in text
     assert "Rechnungsempfänger (Kunde)" in text
     assert "Rechnungsbetrag brutto" in text
     assert "Zahlungsinformationen" in text
+    assert "Name/Firma: Test GmbH" in text
+    assert "BIC TESTDEFFXXX" in text

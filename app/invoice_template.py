@@ -8,20 +8,6 @@ from app.models import InvoiceContext
 from app.settings import settings
 
 
-SUPPLIER = {
-    "name": "Beispiel GmbH",
-    "address": "Musterstraße 1, 12345 Musterstadt",
-    "vat_id": "DE123456789",
-    "contact": "info@beispiel.de, Tel. +49 123 456789",
-}
-
-PAYMENT = {
-    "terms": "Zahlbar innerhalb von 30 Tagen ohne Abzug",
-    "iban": "DE12 3456 7890 1234 5678 90",
-    "bic": "ABCDDEFFXXX",
-}
-
-
 def format_invoice_lines(invoice: InvoiceContext) -> List[str]:
     """Erzeugt Textzeilen für eine vollständig ausgefüllte Rechnung."""
 
@@ -34,10 +20,10 @@ def format_invoice_lines(invoice: InvoiceContext) -> List[str]:
     lines.extend(
         [
             "1. Rechnungsersteller (Lieferant)",
-            f"Name/Firma: {SUPPLIER['name']}",
-            f"Adresse: {SUPPLIER['address']}",
-            f"USt-IdNr.: {SUPPLIER['vat_id']}",
-            f"Kontakt: {SUPPLIER['contact']}",
+            f"Name/Firma: {settings.supplier_name}",
+            f"Adresse: {settings.supplier_address}",
+            f"USt-IdNr.: {settings.supplier_vat_id}",
+            f"Kontakt: {settings.supplier_contact}",
             "",
         ]
     )
@@ -84,8 +70,8 @@ def format_invoice_lines(invoice: InvoiceContext) -> List[str]:
     lines.extend(
         [
             "5. Zahlungsinformationen",
-            f"Zahlungsbedingungen: {PAYMENT['terms']}",
-            f"Bankverbindung: IBAN {PAYMENT['iban']}, BIC {PAYMENT['bic']}",
+            f"Zahlungsbedingungen: {settings.payment_terms}",
+            f"Bankverbindung: IBAN {settings.payment_iban}, BIC {settings.payment_bic}",
             f"Verwendungszweck: Rechnungsnummer {invoice.invoice_number or ''}",
             "",
         ]
