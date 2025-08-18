@@ -61,7 +61,7 @@ async def voice_conversation(
         invoice.items.append(
             estimate_labor_item(invoice.service.get("description", ""))
         )
-    apply_pricing(invoice)
+        apply_pricing(invoice)
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
