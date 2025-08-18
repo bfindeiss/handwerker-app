@@ -29,3 +29,4 @@ Resources:
           # Beispielhafte Umgebungsvariablen; Werte über SAM CLI oder AWS Console setzen
           LLM_PROVIDER: openai
           STT_PROVIDER: openai
+          STT_LANGUAGE: de
