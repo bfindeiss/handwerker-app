@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from typing import Dict
+from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Form
 
@@ -25,6 +26,7 @@ SESSIONS: Dict[str, str] = {}
 
 
 def fill_default_fields(invoice: InvoiceContext) -> None:
+    """Füllt fehlende Pflichtfelder mit Platzhaltern."""
     """Ergänzt Platzhalter für optionale Felder."""
     if not invoice.customer.get("name"):
         invoice.customer["name"] = "Unbekannter Kunde"
@@ -50,15 +52,16 @@ async def voice_conversation(
     try:
         invoice = parse_invoice_context(invoice_json)
     except ValueError:
-        # Wenn der KI-Auszug nicht geparst werden kann, starten wir die
-        # Sitzung neu und bitten um eine Wiederholung. So verhindern wir,
-        # dass sich missverstandene Ausschnitte anhäufen und immer wieder
-        # dieselbe Nachfrage gestellt wird.
-        SESSIONS.pop(session_id, None)
-        question = (
-            "Entschuldigung, ich konnte die Angaben nicht verstehen. "
-            "Bitte nenne noch einmal Kundennamen, Dienstleistung und Betrag."
+        invoice = InvoiceContext(
+            type="InvoiceContext", customer={}, service={}, items=[], amount={}
         )
+
+    fill_default_fields(invoice)
+    if not any(item.category == "labor" for item in invoice.items):
+        invoice.items.append(
+            estimate_labor_item(invoice.service.get("description", ""))
+        )
+    apply_pricing(invoice)
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -94,18 +97,20 @@ async def voice_conversation(
     # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
     send_to_billing_system(invoice)
     log_dir = store_interaction(audio_bytes, full_transcript, invoice)
-    SESSIONS.pop(session_id, None)
+    pdf_path = str(Path(log_dir) / "invoice.pdf")
+    pdf_url = "/" + pdf_path.replace("\\", "/")
     message = (
-        "Die Rechnung für "
-        f"{invoice.customer['name']} über {invoice.amount['total']} Euro "
-        "wurde erstellt."
+        "Vorläufige Rechnung für "
+        f"{invoice.customer['name']} über {invoice.amount['total']} Euro erstellt."
     )
     audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
     return {
-        "done": True,
+        "done": False,
         "message": message,
         "audio": audio_b64,
         "invoice": invoice.model_dump(mode="json"),
         "log_dir": log_dir,
+        "pdf_path": pdf_path,
+        "pdf_url": pdf_url,
         "transcript": full_transcript,
     }
