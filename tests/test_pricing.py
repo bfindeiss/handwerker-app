@@ -54,6 +54,23 @@ def test_apply_pricing_defaults():
     assert invoice.issue_date == date.today()
 
 
+def test_apply_pricing_travel_overrides_unit_price():
+    """Provided travel prices are overridden by the configured rate."""
+    invoice = _base_invoice([
+        InvoiceItem(
+            description="Fahrt",
+            category="travel",
+            quantity=5,
+            unit="km",
+            unit_price=123.45,
+        )
+    ])
+
+    apply_pricing(invoice)
+
+    assert invoice.items[0].unit_price == settings.travel_rate_per_km
+
+
 def test_apply_pricing_material_missing():
     invoice = _base_invoice([
         InvoiceItem(

@@ -91,3 +91,21 @@ steckdose_installieren:
     quantity: 1
     unit_price: 40
 
+waende_streichen:
+  - description: "Farbe"
+    category: "material"
+    unit: "Stk"
+    quantity: 1
+    unit_price: 0
+  - description: "Anfahrt"
+    category: "travel"
+    unit: "km"
+    quantity: 10
+    unit_price: 0
+  - description: "Arbeitszeit Geselle"
+    category: "labor"
+    unit: "h"
+    quantity: 4
+    unit_price: 0
+    worker_role: "Geselle"
+

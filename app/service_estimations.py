@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from app.models import InvoiceItem
 from app.service_templates import SERVICE_TEMPLATES
 
@@ -22,19 +23,26 @@ def estimate_labor_item(service_description: str) -> InvoiceItem:
 
 
 def estimate_invoice_items(service_description: str) -> list[InvoiceItem]:
-    """Gibt eine Liste von Rechnungspositionen basierend auf Vorlagen zurück."""
-    desc = (service_description or "").lower()
-    key: str | None = None
-    if "dusche" in desc:
-        key = "dusche_einbauen"
-    elif "fenster" in desc:
-        key = "fenster_setzen"
-    elif "laminat" in desc:
-        key = "laminat_verlegen"
-    elif "steckdose" in desc:
-        key = "steckdose_installieren"
+    """Gibt eine Liste von Rechnungspositionen basierend auf Vorlagen zurück.
 
-    if key and key in SERVICE_TEMPLATES:
-        return [InvoiceItem(**item) for item in SERVICE_TEMPLATES[key]]
+    Die Beschreibung wird auf bekannte Schlüsselwörter geprüft und bei einem
+    Treffer werden die entsprechenden Vorlagen als ``InvoiceItem``-Objekte
+    zurückgegeben. Wird kein Schlüsselwort gefunden, fällt die Funktion auf
+    eine generische Arbeitsposition zurück.
+    """
+
+    desc = (service_description or "").lower()
+    keyword_map = {
+        "dusche": "dusche_einbauen",
+        "duschkabine": "dusche_einbauen",
+        "fenster": "fenster_setzen",
+        "laminat": "laminat_verlegen",
+        "steckdose": "steckdose_installieren",
+        "malen": "waende_streichen",
+        "streichen": "waende_streichen",
+    }
+    for keyword, template_key in keyword_map.items():
+        if keyword in desc and template_key in SERVICE_TEMPLATES:
+            return [InvoiceItem(**data) for data in SERVICE_TEMPLATES[template_key]]
 
     return [estimate_labor_item(service_description)]
