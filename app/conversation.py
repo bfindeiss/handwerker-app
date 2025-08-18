@@ -7,7 +7,11 @@ from fastapi import APIRouter, UploadFile, File, Form
 
 from app.transcriber import transcribe_audio
 from app.llm_agent import extract_invoice_context
-from app.models import parse_invoice_context, missing_invoice_fields
+from app.models import (
+    InvoiceContext,
+    parse_invoice_context,
+    missing_invoice_fields,
+)
 from app.tts import text_to_speech
 from app.billing_adapter import send_to_billing_system
 from app.persistence import store_interaction
@@ -16,6 +20,14 @@ router = APIRouter()
 
 # Zwischenspeicher für laufende Konversationen.
 SESSIONS: Dict[str, str] = {}
+
+
+def fill_default_fields(invoice: InvoiceContext) -> None:
+    """Ergänzt Platzhalter für optionale Felder."""
+    if not invoice.customer.get("name"):
+        invoice.customer["name"] = "Unbekannter Kunde"
+    if not invoice.service.get("description"):
+        invoice.service["description"] = "Dienstleistung nicht näher beschrieben"
 
 
 @router.post("/conversation/")
@@ -53,6 +65,7 @@ async def voice_conversation(
             "transcript": full_transcript,
         }
     else:
+        fill_default_fields(invoice)
         missing = missing_invoice_fields(invoice)
 
     if missing:
@@ -60,6 +73,7 @@ async def voice_conversation(
             "customer.name": "Wie heißt der Kunde?",
             "service.description": "Welche Dienstleistung wurde erbracht?",
             "amount.total": "Wie hoch ist der Gesamtbetrag?",
+            "items": "Welche Positionen wurden abgerechnet?",
         }
         question = question_map.get(missing[0], missing[0])
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")

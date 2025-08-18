@@ -60,7 +60,7 @@ def test_conversation_followup(monkeypatch, tmp_data_dir):
     assert resp.status_code == 200
     data = resp.json()
     assert data["done"] is False
-    assert "Wie heißt der Kunde" in data["question"]
+    assert "Welche Positionen" in data["question"]
 
     resp = client.post(
         "/conversation/",
@@ -133,3 +133,52 @@ def test_conversation_parse_error_resets_session(monkeypatch, tmp_data_dir):
     data = resp.json()
     assert data["done"] is True
     assert data["invoice"]["customer"]["name"] == "Hans"
+
+
+def test_conversation_defaults(monkeypatch, tmp_data_dir):
+    """Missing customer/service fields are filled with placeholders."""
+    conversation.SESSIONS.clear()
+
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Malen 100")
+
+    def fake_extract(text):
+        return json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {},
+                "service": {},
+                "items": [
+                    {
+                        "description": "Arbeitszeit Geselle",
+                        "category": "labor",
+                        "quantity": 1,
+                        "unit": "h",
+                        "unit_price": 40,
+                        "worker_role": "Geselle",
+                    }
+                ],
+                "amount": {"total": 100.0, "currency": "EUR"},
+            }
+        )
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": "s"},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is True
+    assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
+    assert (
+        data["invoice"]["service"]["description"]
+        == "Dienstleistung nicht näher beschrieben"
+    )
