@@ -25,8 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   recordBtn.addEventListener('click', async () => {
     if (!recordBtn.classList.contains('recording')) {
-      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new AudioContext();
+      audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 16000,
+          noiseSuppression: true,
+          echoCancellation: true,
+        },
+      });
+      const audioContext = new AudioContext({ sampleRate: 16000 });
       const input = audioContext.createMediaStreamSource(audioStream);
       recorder = new Recorder(input, { numChannels: 1 });
       recorder.record();
