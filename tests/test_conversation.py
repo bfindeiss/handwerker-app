@@ -9,112 +9,27 @@ from app.main import app  # noqa: E402
 import app.conversation as conversation  # noqa: E402
 
 
-def test_conversation_followup(monkeypatch, tmp_data_dir):
-    """Asks questions until all invoice data is provided."""
+def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
+    """Generates a provisional invoice even with sparse input."""
     conversation.SESSIONS.clear()
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Einbau Dusche")
 
-    transcripts = iter(["", "Hans Malen 100"])
-    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
-
-    def fake_extract(text):
-        data = {
-            "type": "InvoiceContext",
-            "customer": {},
-            "service": {},
-            "items": [],
-            "amount": {},
-        }
-        if "Hans" in text:
-            data["customer"] = {"name": "Hans"}
-        if "Malen" in text:
-            data["service"] = {"description": "Malen", "materialIncluded": True}
-            data["items"].append(
-                {
-                    "description": "Arbeitszeit Geselle",
-                    "category": "labor",
-                    "quantity": 1,
-                    "unit": "h",
-                    "unit_price": 40,
-                    "worker_role": "Geselle",
-                }
-            )
-        if "100" in text:
-            data["amount"] = {"total": 100.0, "currency": "EUR"}
-        return json.dumps(data)
-
-    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
-    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
-    monkeypatch.setattr(
-        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
-    )
-    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
-
-    client = TestClient(app)
-    session_id = "abc"
-
-    resp = client.post(
-        "/conversation/",
-        data={"session_id": session_id},
-        files={"file": ("audio.wav", b"data")},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["done"] is False
-    assert "Wie heißt der Kunde" in data["question"]
-
-    resp = client.post(
-        "/conversation/",
-        data={"session_id": session_id},
-        files={"file": ("audio.wav", b"data")},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["done"] is True
-    assert data["invoice"]["customer"]["name"] == "Hans"
-    assert "Rechnung" in data["message"]
-
-
-def test_conversation_parse_error_resets_session(monkeypatch, tmp_data_dir):
-    """Session should restart on parse errors instead of looping."""
-    conversation.SESSIONS.clear()
-
-    transcripts = iter(["kaputt", "Hans Malen 100"])
-    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
-    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
-
-    client = TestClient(app)
-    session_id = "xyz"
-
-    # Erste Anfrage: LLM liefert unverständliche Ausgabe
-    monkeypatch.setattr(conversation, "extract_invoice_context", lambda t: "invalid")
-    resp = client.post(
-        "/conversation/",
-        data={"session_id": session_id},
-        files={"file": ("audio.wav", b"data")},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["done"] is False
-    assert "konnte die angaben nicht verstehen" in data["question"].lower()
-
-    # Zweite Anfrage: gültige Daten und erfolgreicher Abschluss
     def fake_extract(text):
         return json.dumps(
             {
                 "type": "InvoiceContext",
-                "customer": {"name": "Hans"},
-                "service": {"description": "Malen", "materialIncluded": True},
+                "customer": {},
+                "service": {"description": "Einbau einer Dusche"},
                 "items": [
                     {
-                        "description": "Arbeitszeit Geselle",
-                        "category": "labor",
+                        "description": "Duschset",
+                        "category": "material",
                         "quantity": 1,
-                        "unit": "h",
-                        "unit_price": 40,
-                        "worker_role": "Geselle",
+                        "unit": "stk",
+                        "unit_price": 300,
                     }
                 ],
-                "amount": {"total": 100.0, "currency": "EUR"},
+                "amount": {},
             }
         )
 
@@ -123,13 +38,43 @@ def test_conversation_parse_error_resets_session(monkeypatch, tmp_data_dir):
     monkeypatch.setattr(
         conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
     )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
 
+    client = TestClient(app)
     resp = client.post(
         "/conversation/",
-        data={"session_id": session_id},
+        data={"session_id": "abc"},
         files={"file": ("audio.wav", b"data")},
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["done"] is True
-    assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["done"] is False
+    invoice = data["invoice"]
+    assert invoice["customer"]["name"] == "Unbekannter Kunde"
+    assert any(item["category"] == "labor" for item in invoice["items"])
+    assert invoice["amount"]["total"] > 300
+    assert "pdf_url" in data
+
+
+def test_conversation_parse_error(monkeypatch, tmp_data_dir):
+    """Even on parse errors a provisional invoice is returned."""
+    conversation.SESSIONS.clear()
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "kaputt")
+    monkeypatch.setattr(conversation, "extract_invoice_context", lambda t: "invalid")
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": "xyz"},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
+    assert any(item["category"] == "labor" for item in data["invoice"]["items"])
