@@ -56,7 +56,12 @@ class OllamaProvider(LLMProvider):
         try:
             resp = httpx.post(
                 url,
-                json={"model": settings.llm_model, "prompt": prompt, "stream": False},
+                json={
+                    "model": settings.llm_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                },
                 timeout=httpx.Timeout(timeout_s, connect=5.0),
             )
         except httpx.RequestError as exc:
