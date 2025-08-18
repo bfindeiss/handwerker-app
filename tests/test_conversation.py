@@ -72,3 +72,64 @@ def test_conversation_followup(monkeypatch, tmp_data_dir):
     assert data["done"] is True
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert "Rechnung" in data["message"]
+
+
+def test_conversation_parse_error_resets_session(monkeypatch, tmp_data_dir):
+    """Session should restart on parse errors instead of looping."""
+    conversation.SESSIONS.clear()
+
+    transcripts = iter(["kaputt", "Hans Malen 100"])
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    session_id = "xyz"
+
+    # Erste Anfrage: LLM liefert unverständliche Ausgabe
+    monkeypatch.setattr(conversation, "extract_invoice_context", lambda t: "invalid")
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert "konnte die angaben nicht verstehen" in data["question"].lower()
+
+    # Zweite Anfrage: gültige Daten und erfolgreicher Abschluss
+    def fake_extract(text):
+        return json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {"name": "Hans"},
+                "service": {"description": "Malen", "materialIncluded": True},
+                "items": [
+                    {
+                        "description": "Arbeitszeit Geselle",
+                        "category": "labor",
+                        "quantity": 1,
+                        "unit": "h",
+                        "unit_price": 40,
+                        "worker_role": "Geselle",
+                    }
+                ],
+                "amount": {"total": 100.0, "currency": "EUR"},
+            }
+        )
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is True
+    assert data["invoice"]["customer"]["name"] == "Hans"

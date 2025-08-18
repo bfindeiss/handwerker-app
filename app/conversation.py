@@ -36,10 +36,22 @@ async def voice_conversation(
     try:
         invoice = parse_invoice_context(invoice_json)
     except ValueError:
-        missing = [
-            "Bitte nennen Sie den Kundennamen, die Dienstleistung und den Betrag."
-        ]
-        invoice = None  # type: ignore
+        # Wenn der KI-Auszug nicht geparst werden kann, starten wir die
+        # Sitzung neu und bitten um eine Wiederholung. So verhindern wir,
+        # dass sich missverstandene Ausschnitte anhäufen und immer wieder
+        # dieselbe Nachfrage gestellt wird.
+        SESSIONS.pop(session_id, None)
+        question = (
+            "Entschuldigung, ich konnte die Angaben nicht verstehen. "
+            "Bitte nenne noch einmal Kundennamen, Dienstleistung und Betrag."
+        )
+        audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
+        return {
+            "done": False,
+            "question": question,
+            "audio": audio_b64,
+            "transcript": full_transcript,
+        }
     else:
         missing = missing_invoice_fields(invoice)
 
