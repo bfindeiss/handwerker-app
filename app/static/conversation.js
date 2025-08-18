@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const status = document.getElementById('status');
   const chat = document.getElementById('chat');
   const pdfFrame = document.getElementById('pdfViewer');
+  const helpToggle = document.getElementById('helpToggle');
+  const helpPanel = document.getElementById('helpPanel');
 
   const sessionId = crypto.randomUUID();
   let recorder;
@@ -45,6 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
       status.textContent = 'Verarbeite...';
       recorder.exportWAV(sendAudio);
     }
+  });
+
+  helpToggle.addEventListener('click', () => {
+    helpPanel.classList.toggle('hidden');
   });
 
   async function sendAudio(blob) {
