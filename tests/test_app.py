@@ -303,6 +303,51 @@ def test_process_audio(monkeypatch, tmp_data_dir):
     assert data["pdf_url"].endswith("/dir/invoice.pdf")
 
 
+def test_process_audio_m4a(monkeypatch, tmp_data_dir):
+    """Processes m4a uploads by converting to wav."""
+    monkeypatch.setattr(transcriber, "transcribe_audio", lambda x: "transcript")
+    monkeypatch.setattr(app_main, "transcribe_audio", lambda x: "transcript")
+    dummy_json = json.dumps(
+        {
+            "type": "InvoiceContext",
+            "customer": {"name": "Hans"},
+            "service": {"description": "test", "materialIncluded": True},
+            "items": [
+                {
+                    "description": "Arbeitszeit Geselle",
+                    "category": "labor",
+                    "quantity": 2,
+                    "unit": "h",
+                    "unit_price": 40,
+                    "worker_role": "Geselle",
+                }
+            ],
+            "amount": {"total": 100.0, "currency": "EUR"},
+        }
+    )
+    monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(app_main, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(
+        billing_adapter, "send_to_billing_system", lambda i: {"ok": True}
+    )
+    monkeypatch.setattr(app_main, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: "dir")
+    monkeypatch.setattr(app_main, "store_interaction", lambda a, t, i: "dir")
+    monkeypatch.setattr(app_main, "_convert_to_wav", lambda b: b)
+
+    client = TestClient(app)
+    response = client.post(
+        "/process-audio/",
+        files={"file": ("audio.m4a", b"data")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transcript"] == "transcript"
+    assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["invoice"]["items"][0]["worker_role"] == "Geselle"
+    assert data["billing_result"] == {"ok": True}
+
+
 def test_process_audio_invalid_invoice(monkeypatch):
     """Returns error when LLM response is empty."""
     monkeypatch.setattr(transcriber, "transcribe_audio", lambda x: "t")

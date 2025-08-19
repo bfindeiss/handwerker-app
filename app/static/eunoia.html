@@ -39,8 +39,9 @@
         <div class="flex gap-4">
           <button id="record" class="w-20 h-20 rounded-full bg-indigo-600 text-white flex items-center justify-center text-3xl shadow-lg transition duration-300 ease-in-out hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-300">🎤</button>
           <button id="upload" class="w-20 h-20 rounded-full bg-emerald-600 text-white flex items-center justify-center text-2xl shadow-lg transition duration-300 ease-in-out hover:bg-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-300">⬆️</button>
-          <input id="fileInput" type="file" accept="audio/*" class="hidden" />
+          <input id="fileInput" type="file" accept=".wav,.mp3,.m4a,audio/wav,audio/mpeg,audio/mp4" class="hidden" />
         </div>
+        <p class="mt-2 text-gray-700 text-sm">Unterstützte Formate: WAV, MP3, M4A</p>
         <div class="mt-4 w-full flex gap-2">
           <input id="textInput" type="text" placeholder="Text eingeben..." class="flex-1 p-2 rounded border border-gray-300" />
           <button id="sendText" class="px-4 py-2 bg-indigo-600 text-white rounded">Senden</button>
