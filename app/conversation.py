@@ -103,7 +103,6 @@ async def voice_conversation(
     parse_error = False
     try:
         invoice = parse_invoice_context(invoice_json)
-        INVOICE_STATE[session_id] = invoice
     except ValueError:
         parse_error = True
         invoice = INVOICE_STATE.get(
@@ -113,11 +112,6 @@ async def voice_conversation(
             ),
         )
 
-    missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
-    # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
-    if set(missing).issubset({"customer.name", "service.description"}):
-        missing = []
-
     # Platzhalter und geschätzte Arbeitszeit ergänzen.
     fill_default_fields(invoice)
     if not any(item.category == "labor" for item in invoice.items):
@@ -126,6 +120,13 @@ async def voice_conversation(
         )
 
     apply_pricing(invoice)
+
+    INVOICE_STATE[session_id] = invoice
+
+    missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
+    # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
+    if set(missing).issubset({"customer.name", "service.description"}):
+        missing = []
 
     log_dir = store_interaction(audio_bytes, full_transcript, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
