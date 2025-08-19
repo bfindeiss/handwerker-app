@@ -1,7 +1,10 @@
 import logging
+import os
+import subprocess
+import tempfile
+import time
 from pathlib import Path
 from uuid import uuid4
-import time
 
 from fastapi import File, HTTPException, UploadFile, FastAPI, Request
 from fastapi.responses import FileResponse
@@ -82,6 +85,28 @@ def web_interface():
     return FileResponse("app/static/eunoia.html")
 
 
+def _convert_to_wav(audio_bytes: bytes) -> bytes:
+    """Converts arbitrary audio bytes to WAV using ffmpeg."""
+    with tempfile.NamedTemporaryFile(delete=False) as src:
+        src.write(audio_bytes)
+        src.flush()
+        src_path = src.name
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as dst:
+        dst_path = dst.name
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", src_path, dst_path],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return Path(dst_path).read_bytes()
+    finally:
+        os.unlink(src_path)
+        if os.path.exists(dst_path):
+            os.unlink(dst_path)
+
+
 @app.post("/process-audio/")
 async def process_audio(file: UploadFile = File(...)):
     """Hauptendpunkt: nimmt Audio entgegen und liefert Rechnungsdaten zurück."""
@@ -90,6 +115,8 @@ async def process_audio(file: UploadFile = File(...)):
     try:
         # 1) Audiodatei in den Arbeitsspeicher laden.
         audio_bytes = await file.read()
+        if not (file.filename or "").lower().endswith(".wav"):
+            audio_bytes = _convert_to_wav(audio_bytes)
 
         # 2) Mithilfe des konfigurierten Speech‑to‑Text‑Backends in Text umwandeln.
         start = time.perf_counter()
