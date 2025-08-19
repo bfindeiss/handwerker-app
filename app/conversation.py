@@ -146,6 +146,7 @@ async def voice_conversation(
         }
 
     if missing:
+        invoice = INVOICE_STATE.get(session_id, invoice)
         question_map = {
             "customer.name": "Wie heißt der Kunde?",
             "service.description": "Welche Dienstleistung wurde erbracht?",
