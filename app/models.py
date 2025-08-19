@@ -69,11 +69,6 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
     except ValidationError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
 
-    # Platzhalter ohne Beschreibung oder Menge entfernen
-    invoice.items = [
-        item for item in invoice.items if item.description.strip() and item.quantity > 0
-    ]
-
     # Nach dem Parsen prüfen wir jede Rechnungsposition auf Schlüsselwörter,
     # die auf Reisekosten hindeuten. Zusätzlich normalisieren wir Positionen,
     # die fälschlicherweise als Währungsmenge interpretiert wurden.
@@ -89,6 +84,16 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
             item.quantity = 1.0
             item.unit_price = value
             item.unit = "EUR"
+
+    # Platzhalter ohne Beschreibung oder Preis entfernen. Wir behalten
+    # Positionen mit Menge 0, sofern ein Preis angegeben wurde, da LLMs
+    # Materialkosten häufig als Gesamtbetrag ohne Menge liefern.
+    invoice.items = [
+        item
+        for item in invoice.items
+        if item.description.strip() and (item.quantity > 0 or item.unit_price > 0)
+    ]
+
     return invoice
 
 
