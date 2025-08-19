@@ -12,6 +12,7 @@ import app.conversation as conversation  # noqa: E402
 def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     """Generates a provisional invoice even with sparse input."""
     conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
 
     transcripts = iter(["", "Hans Malen"])
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
@@ -83,6 +84,7 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
 def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     """Even on parse errors a provisional invoice is returned."""
     conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "kaputt")
     monkeypatch.setattr(conversation, "extract_invoice_context", lambda t: "invalid")
     monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
@@ -176,6 +178,7 @@ def test_conversation_parse_error_keeps_state(monkeypatch, tmp_data_dir):
 def test_conversation_store_company_name(monkeypatch, tmp_path):
     """Recognizes command to store company name in .env."""
     conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
     env_file = tmp_path / ".env"
     monkeypatch.setattr(conversation, "ENV_PATH", env_file)
     monkeypatch.setattr(
@@ -203,6 +206,7 @@ def test_conversation_store_company_name(monkeypatch, tmp_path):
 def test_conversation_defaults(monkeypatch, tmp_data_dir):
     """Missing customer/service fields are filled with placeholders."""
     conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Malen 100")
 
@@ -210,6 +214,7 @@ def test_conversation_defaults(monkeypatch, tmp_data_dir):
 def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
     """Missing labor positions should be estimated automatically."""
     conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Hans Dusche")
 
@@ -254,3 +259,68 @@ def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
         data["invoice"]["service"]["description"]
         == "Dienstleistung nicht näher beschrieben"
     )
+
+
+def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
+    """Corrections with invalid parse keep prior context."""
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+
+    transcripts = iter(["Huber Fenster", "Nur eine Stunde"])
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
+
+    invoice_jsons = iter(
+        [
+            json.dumps(
+                {
+                    "type": "InvoiceContext",
+                    "customer": {"name": "Huber"},
+                    "service": {"description": "Fenster"},
+                    "items": [
+                        {
+                            "description": "Arbeitszeit Geselle",
+                            "category": "labor",
+                            "quantity": 8,
+                            "unit": "h",
+                            "unit_price": 50,
+                            "worker_role": "Geselle",
+                        }
+                    ],
+                    "amount": {"total": 400.0, "currency": "EUR"},
+                }
+            ),
+            "{invalid",
+        ]
+    )
+    monkeypatch.setattr(
+        conversation, "extract_invoice_context", lambda t: next(invoice_jsons)
+    )
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    session_id = "corr"
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is True
+
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert data["invoice"]["customer"]["name"] == "Huber"
+    assert data["invoice"]["service"]["description"] == "Fenster"
+    assert "Welche Positionen" in data["question"]
+    assert "Wie heißt der Kunde" not in data["question"]

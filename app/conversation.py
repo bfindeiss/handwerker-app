@@ -101,6 +101,7 @@ async def voice_conversation(
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     invoice_json = extract_invoice_context(full_transcript)
     parse_error = False
+    parsing_failed = False
     try:
         invoice = parse_invoice_context(invoice_json)
         INVOICE_STATE[session_id] = invoice
@@ -115,6 +116,8 @@ async def voice_conversation(
 
     # Fehlende Felder vor dem Ausfüllen ermitteln.
     missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
+    if parsing_failed and not missing:
+        missing = ["items"]
     # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
     if set(missing).issubset({"customer.name", "service.description"}):
         missing = []
