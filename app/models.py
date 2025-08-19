@@ -69,6 +69,11 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
     except ValidationError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
 
+    # Platzhalter ohne Beschreibung oder Menge entfernen
+    invoice.items = [
+        item for item in invoice.items if item.description.strip() and item.quantity > 0
+    ]
+
     # Nach dem Parsen prüfen wir jede Rechnungsposition auf Schlüsselwörter,
     # die auf Reisekosten hindeuten. Zusätzlich normalisieren wir Positionen,
     # die fälschlicherweise als Währungsmenge interpretiert wurden.
