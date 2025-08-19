@@ -58,9 +58,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (sendText && textInput) {
-    sendText.addEventListener('click', sendTextMessage);
+    sendText.addEventListener('click', (e) => {
+      e.preventDefault();
+      sendTextMessage();
+    });
     textInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
+        e.preventDefault();
         sendTextMessage();
       }
     });
