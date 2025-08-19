@@ -34,6 +34,34 @@ def test_parse_invoice_context_missing_items():
     assert invoice.items == []
 
 
+def test_parse_invoice_context_filters_empty_items():
+    data = {
+        "type": "InvoiceContext",
+        "customer": {},
+        "service": {},
+        "items": [
+            {
+                "description": "",
+                "category": "travel",
+                "quantity": 0,
+                "unit": "km",
+                "unit_price": 1,
+            },
+            {
+                "description": "Fenster-Material",
+                "category": "material",
+                "quantity": 1.0,
+                "unit": "Stück",
+                "unit_price": 100.0,
+            },
+        ],
+        "amount": {},
+    }
+    invoice = parse_invoice_context(json.dumps(data))
+    assert len(invoice.items) == 1
+    assert invoice.items[0].description == "Fenster-Material"
+
+
 def test_parse_invoice_context_with_comments_and_trailing_commas():
     raw = """
     {
