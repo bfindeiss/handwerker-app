@@ -108,6 +108,30 @@ def test_parse_invoice_context_currency_unit_total():
     assert item.unit == "EUR"
 
 
+def test_parse_invoice_context_keeps_zero_quantity_with_price():
+    data = {
+        "type": "InvoiceContext",
+        "customer": {},
+        "service": {},
+        "items": [
+            {
+                "description": "Fenster-Material",
+                "category": "material",
+                "quantity": 0.0,
+                "unit": "EUR",
+                "unit_price": 300.0,
+            }
+        ],
+        "amount": {},
+    }
+    invoice = parse_invoice_context(json.dumps(data))
+    assert len(invoice.items) == 1
+    item = invoice.items[0]
+    assert item.quantity == 1.0
+    assert item.unit_price == 300.0
+    assert item.unit == "EUR"
+
+
 @pytest.mark.parametrize(
     "description",
     ["Anfahrt zur Baustelle", "Fahrtkosten zur Baustelle", "Kilometerpauschale"],
