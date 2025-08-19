@@ -26,6 +26,8 @@ router = APIRouter()
 
 # Zwischenspeicher für laufende Konversationen
 SESSIONS: Dict[str, str] = {}
+# Letzten gültigen Rechnungszustand je Sitzung merken
+INVOICE_STATE: Dict[str, InvoiceContext] = {}
 
 # Pfad zur Konfigurationsdatei
 ENV_PATH = Path(".env")
@@ -98,15 +100,20 @@ async def voice_conversation(
 
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     invoice_json = extract_invoice_context(full_transcript)
+    parsing_failed = False
     try:
         invoice = parse_invoice_context(invoice_json)
+        INVOICE_STATE[session_id] = invoice
     except ValueError:
-        invoice = InvoiceContext(
+        parsing_failed = True
+        invoice = INVOICE_STATE.get(session_id) or InvoiceContext(
             type="InvoiceContext", customer={}, service={}, items=[], amount={}
         )
 
     # Fehlende Felder vor dem Ausfüllen ermitteln.
     missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
+    if parsing_failed and not missing:
+        missing = ["items"]
     # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
     if set(missing).issubset({"customer.name", "service.description"}):
         missing = []
