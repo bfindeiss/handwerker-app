@@ -64,15 +64,10 @@ def fill_default_fields(invoice: InvoiceContext) -> None:
         invoice.service["description"] = "Dienstleistung nicht näher beschrieben"
 
 
-@router.post("/conversation/")
-async def voice_conversation(
-    session_id: str = Form(...),
-    file: UploadFile = File(...),
-):
-    """Führt eine dialogorientierte Aufnahme durch."""
-
-    audio_bytes = await file.read()
-    transcript_part = transcribe_audio(audio_bytes)
+def _handle_conversation(
+    session_id: str, transcript_part: str, audio_bytes: bytes
+) -> dict:
+    """Gemeinsame Logik für Sprach- und Texteingaben."""
 
     # Prüft auf Konfigurationsbefehle wie "Speichere meinen Firmennamen".
     m = re.search(
@@ -105,7 +100,6 @@ async def voice_conversation(
     placeholder_notice = False
     try:
         invoice = parse_invoice_context(invoice_json)
-        INVOICE_STATE[session_id] = invoice
     except ValueError:
         parse_error = True
         if session_id in INVOICE_STATE:
@@ -131,11 +125,6 @@ async def voice_conversation(
             INVOICE_STATE[session_id] = invoice
             placeholder_notice = True
 
-    missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
-    # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
-    if set(missing).issubset({"customer.name", "service.description"}):
-        missing = []
-
     # Platzhalter und geschätzte Arbeitszeit ergänzen.
     fill_default_fields(invoice)
     if not any(item.category == "labor" for item in invoice.items):
@@ -145,12 +134,22 @@ async def voice_conversation(
 
     apply_pricing(invoice)
 
+    INVOICE_STATE[session_id] = invoice
+
+    missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
+    # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
+    if set(missing).issubset({"customer.name", "service.description"}):
+        missing = []
+
     log_dir = store_interaction(audio_bytes, full_transcript, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
     pdf_url = "/" + pdf_path.replace("\\", "/")
 
-    if parse_error and session_id in INVOICE_STATE and not placeholder_notice:
-        question = "Wie viele Stunden wurden abgerechnet?"
+    if parse_error and session_id in INVOICE_STATE:
+        if "stund" in invoice_json.lower():
+            question = "Wie viele Stunden wurden abgerechnet?"
+        else:
+            question = "Welche Positionen wurden abgerechnet?"
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -203,3 +202,22 @@ async def voice_conversation(
         "pdf_url": pdf_url,
         "transcript": full_transcript,
     }
+
+
+@router.post("/conversation/")
+async def voice_conversation(
+    session_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+    """Führt eine dialogorientierte Aufnahme durch."""
+
+    audio_bytes = await file.read()
+    transcript_part = transcribe_audio(audio_bytes)
+    return _handle_conversation(session_id, transcript_part, audio_bytes)
+
+
+@router.post("/conversation-text/")
+async def text_conversation(session_id: str = Form(...), text: str = Form(...)):
+    """Dialog über Texteingabe."""
+
+    return _handle_conversation(session_id, text, b"")

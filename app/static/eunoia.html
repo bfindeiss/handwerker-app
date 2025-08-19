@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -16,21 +17,33 @@
   </style>
 </head>
 <body class="h-screen bg-gradient-to-br from-indigo-600 via-sky-500 to-emerald-500 flex flex-col text-gray-900">
-  <header class="text-white text-center py-6 text-3xl font-bold tracking-wide bg-black/20 backdrop-blur-sm">
-    Eunoia Conversational Hub
+  <header class="flex justify-between items-center text-white py-6 px-4 text-3xl font-bold tracking-wide bg-black/20 backdrop-blur-sm">
+    <span>Eunoia Conversational Hub</span>
+    <button id="helpToggle" class="text-lg bg-indigo-600/70 hover:bg-indigo-500 px-3 py-1 rounded">?</button>
   </header>
+  <section id="helpPanel" class="hidden bg-white/70 p-4 text-gray-800 text-sm shadow">
+    <h2 class="text-xl font-semibold mb-2">Tutorial &amp; Möglichkeiten</h2>
+    <p class="mb-2">Der Assistent hilft dabei, Rechnungsdaten per Sprache zu erfassen und als PDF zu speichern. Sprechen Sie Ihre Angaben ein, fehlende Informationen werden nachgefragt.</p>
+    <h3 class="font-semibold mt-2">Beispielprompts</h3>
+    <ul class="list-disc list-inside space-y-1">
+      <li>„Speichere meinen Firmennamen Handwerker GmbH.“</li>
+      <li>„Der Kunde heißt Max Mustermann.“</li>
+      <li>„Die Dienstleistung war eine Heizungsreparatur.“</li>
+      <li>„Füge 10 Meter Kabel zu je 2 Euro hinzu.“</li>
+    </ul>
+  </section>
   <main class="flex-1 flex items-center justify-center px-4">
     <div class="w-full max-w-3xl flex flex-col h-[80vh] bg-white/30 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden">
       <div id="chat" class="flex-1 overflow-y-auto p-6 space-y-4"></div>
       <div class="p-6 bg-white/40 backdrop-blur flex flex-col items-center">
         <div class="flex gap-4">
-          <button id="record" class="w-20 h-20 rounded-full bg-indigo-600 text-white flex items-center justify-center text-3xl shadow-lg transition duration-300 ease-in-out hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-300">
-            🎤
-          </button>
-          <button id="upload" class="w-20 h-20 rounded-full bg-emerald-600 text-white flex items-center justify-center text-2xl shadow-lg transition duration-300 ease-in-out hover:bg-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-300">
-            ⬆️
-          </button>
+          <button id="record" class="w-20 h-20 rounded-full bg-indigo-600 text-white flex items-center justify-center text-3xl shadow-lg transition duration-300 ease-in-out hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-300">🎤</button>
+          <button id="upload" class="w-20 h-20 rounded-full bg-emerald-600 text-white flex items-center justify-center text-2xl shadow-lg transition duration-300 ease-in-out hover:bg-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-300">⬆️</button>
           <input id="fileInput" type="file" accept="audio/*" class="hidden" />
+        </div>
+        <div class="mt-4 w-full flex gap-2">
+          <input id="textInput" type="text" placeholder="Text eingeben..." class="flex-1 p-2 rounded border border-gray-300" />
+          <button id="sendText" class="px-4 py-2 bg-indigo-600 text-white rounded">Senden</button>
         </div>
         <p id="status" class="mt-2 text-gray-700"></p>
         <div id="fileResult" class="w-full mt-4 text-sm text-gray-800"></div>

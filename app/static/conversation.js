@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const pdfFrame = document.getElementById('pdfViewer');
   const helpToggle = document.getElementById('helpToggle');
   const helpPanel = document.getElementById('helpPanel');
+  const textInput = document.getElementById('textInput');
+  const sendText = document.getElementById('sendText');
 
   const sessionId = crypto.randomUUID();
   let recorder;
@@ -49,9 +51,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  helpToggle.addEventListener('click', () => {
-    helpPanel.classList.toggle('hidden');
-  });
+  if (helpToggle && helpPanel) {
+    helpToggle.addEventListener('click', () => {
+      helpPanel.classList.toggle('hidden');
+    });
+  }
+
+  if (sendText && textInput) {
+    sendText.addEventListener('click', sendTextMessage);
+    textInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendTextMessage();
+      }
+    });
+  }
 
   async function sendAudio(blob) {
     const fd = new FormData();
@@ -66,6 +79,35 @@ document.addEventListener('DOMContentLoaded', () => {
       fullTranscript = data.transcript;
     }
 
+    if (data.question) {
+      addMessage(data.question, 'bot');
+    }
+    if (data.message) {
+      addMessage(data.message, 'bot');
+    }
+    if (data.audio) {
+      new Audio(`data:audio/mpeg;base64,${data.audio}`).play();
+    }
+    if (data.done && data.log_dir) {
+      pdfFrame.src = '/' + data.log_dir + '/invoice.pdf';
+      pdfFrame.classList.remove('hidden');
+    }
+    status.textContent = '';
+  }
+
+  async function sendTextMessage() {
+    const text = textInput.value.trim();
+    if (!text) return;
+    addMessage(text, 'user');
+    textInput.value = '';
+    status.textContent = 'Verarbeite...';
+    const fd = new FormData();
+    fd.append('session_id', sessionId);
+    fd.append('text', text);
+    const resp = await fetch('/conversation-text/', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    fullTranscript = data.transcript;
     if (data.question) {
       addMessage(data.question, 'bot');
     }

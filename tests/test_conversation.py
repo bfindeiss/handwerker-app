@@ -57,15 +57,13 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["done"] is False
+    assert data["done"] is True
     invoice = data["invoice"]
     assert invoice["customer"]["name"] == "Unbekannter Kunde"
     assert any(item["category"] == "labor" for item in invoice["items"])
     assert invoice["amount"]["total"] > 300
     assert "pdf_url" in data
-    assert "Welche Positionen" in data["question"]
-    assert "Wie heißt der Kunde" in data["question"]
-    assert "Gesamtbetrag" not in data["question"]
+    assert "message" in data
 
     resp = client.post(
         "/conversation/",
