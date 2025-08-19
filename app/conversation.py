@@ -26,7 +26,7 @@ router = APIRouter()
 
 # Zwischenspeicher für laufende Konversationen
 SESSIONS: Dict[str, str] = {}
-# Speichert den zuletzt gültigen Rechnungs-Kontext pro Session
+# Zuletzt erfolgreicher Rechnungszustand pro Session
 INVOICE_STATE: Dict[str, InvoiceContext] = {}
 
 # Pfad zur Konfigurationsdatei
@@ -100,10 +100,13 @@ async def voice_conversation(
 
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     invoice_json = extract_invoice_context(full_transcript)
+    parse_error = False
+    parsing_failed = False
     try:
         invoice = parse_invoice_context(invoice_json)
         INVOICE_STATE[session_id] = invoice
     except ValueError:
+        parse_error = True
         invoice = INVOICE_STATE.get(
             session_id,
             InvoiceContext(
@@ -113,6 +116,8 @@ async def voice_conversation(
 
     # Fehlende Felder vor dem Ausfüllen ermitteln.
     missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
+    if parsing_failed and not missing:
+        missing = ["items"]
     # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
     if set(missing).issubset({"customer.name", "service.description"}):
         missing = []
@@ -129,6 +134,20 @@ async def voice_conversation(
     log_dir = store_interaction(audio_bytes, full_transcript, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
     pdf_url = "/" + pdf_path.replace("\\", "/")
+
+    if parse_error and session_id in INVOICE_STATE:
+        question = "Wie viele Stunden wurden abgerechnet?"
+        audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
+        return {
+            "done": False,
+            "question": question,
+            "audio": audio_b64,
+            "transcript": full_transcript,
+            "invoice": invoice.model_dump(mode="json"),
+            "log_dir": log_dir,
+            "pdf_path": pdf_path,
+            "pdf_url": pdf_url,
+        }
 
     if missing:
         invoice = INVOICE_STATE.get(session_id, invoice)

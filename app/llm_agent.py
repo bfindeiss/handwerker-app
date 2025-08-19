@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from openai import OpenAI
 
 from app.settings import settings
+from app.logging_config import mask_pii
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,14 @@ class OpenAIProvider(LLMProvider):
                 {"role": "user", "content": prompt},
             ],
         )
+        try:
+            raw_response = response.model_dump_json()
+        except AttributeError:  # Dummy objects in tests may not provide this
+            raw_response = str(response)
+        logger.debug("OpenAI full response: %s", mask_pii(raw_response))
+        reasoning = getattr(response.choices[0].message, "reasoning", None)
+        if reasoning:
+            logger.debug("OpenAI reasoning: %s", mask_pii(reasoning))
         return response.choices[0].message.content
 
 
@@ -84,13 +93,14 @@ class OllamaProvider(LLMProvider):
             )
 
         resp.raise_for_status()
-        logger.debug("Ollama response: %s", getattr(resp, "text", resp))
-        return resp.json().get("response", "")
+        resp_json = resp.json()
+        logger.debug("Ollama full response: %s", mask_pii(str(resp_json)))
+        return resp_json.get("response", "")
 
 
 def _build_prompt(transcript: str) -> str:
     """Stellt den Eingabetext für das LLM zusammen."""
-    return (
+    prompt = (
         "Du bist ein KI-Assistent für Handwerker. Extrahiere aus folgendem Text "
         "eine strukturierte JSON-Rechnung gemäß folgendem Schema:\n\n"
         "{\n"
@@ -108,6 +118,8 @@ def _build_prompt(transcript: str) -> str:
         "Antworte ausschließlich mit gültigem JSON. ``items`` muss vorhanden sein; "
         "falls keine Positionen erkennbar sind, gib eine leere Liste zurück."
     )
+    logger.debug("LLM prompt: %s", mask_pii(prompt))
+    return prompt
 
 
 _LLM_PROVIDERS: dict[str, type[LLMProvider]] = {
