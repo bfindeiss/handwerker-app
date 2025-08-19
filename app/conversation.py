@@ -13,6 +13,7 @@ from app.billing_adapter import send_to_billing_system
 from app.llm_agent import extract_invoice_context
 from app.models import (
     InvoiceContext,
+    InvoiceItem,
     missing_invoice_fields,
     parse_invoice_context,
 )
@@ -96,16 +97,33 @@ def _handle_conversation(
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     invoice_json = extract_invoice_context(full_transcript)
     parse_error = False
+    placeholder_notice = False
     try:
         invoice = parse_invoice_context(invoice_json)
     except ValueError:
         parse_error = True
-        invoice = INVOICE_STATE.get(
-            session_id,
-            InvoiceContext(
-                type="InvoiceContext", customer={}, service={}, items=[], amount={}
-            ),
-        )
+        if session_id in INVOICE_STATE:
+            invoice = INVOICE_STATE[session_id]
+        else:
+            invoice = InvoiceContext(
+                type="InvoiceContext",
+                customer={"name": "Unbekannter Kunde"},
+                service={"description": "Dienstleistung nicht näher beschrieben"},
+                items=[
+                    InvoiceItem(
+                        description="Arbeitszeit Geselle",
+                        category="labor",
+                        quantity=1.0,
+                        unit="h",
+                        unit_price=0.0,
+                        worker_role="Geselle",
+                    )
+                ],
+                amount={},
+            )
+            apply_pricing(invoice)
+            INVOICE_STATE[session_id] = invoice
+            placeholder_notice = True
 
     # Platzhalter und geschätzte Arbeitszeit ergänzen.
     fill_default_fields(invoice)
@@ -171,6 +189,8 @@ def _handle_conversation(
         "Vorläufige Rechnung für "
         f"{invoice.customer['name']} über {invoice.amount['total']} Euro erstellt."
     )
+    if placeholder_notice:
+        message = "Hinweis: Platzhalter verwendet. " + message
     audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
     return {
         "done": True,
