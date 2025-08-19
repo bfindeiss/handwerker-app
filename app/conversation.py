@@ -63,15 +63,10 @@ def fill_default_fields(invoice: InvoiceContext) -> None:
         invoice.service["description"] = "Dienstleistung nicht näher beschrieben"
 
 
-@router.post("/conversation/")
-async def voice_conversation(
-    session_id: str = Form(...),
-    file: UploadFile = File(...),
-):
-    """Führt eine dialogorientierte Aufnahme durch."""
-
-    audio_bytes = await file.read()
-    transcript_part = transcribe_audio(audio_bytes)
+def _handle_conversation(
+    session_id: str, transcript_part: str, audio_bytes: bytes
+) -> dict:
+    """Gemeinsame Logik für Sprach- und Texteingaben."""
 
     # Prüft auf Konfigurationsbefehle wie "Speichere meinen Firmennamen".
     m = re.search(
@@ -132,7 +127,10 @@ async def voice_conversation(
     pdf_url = "/" + pdf_path.replace("\\", "/")
 
     if parse_error and session_id in INVOICE_STATE:
-        question = "Wie viele Stunden wurden abgerechnet?"
+        if "stund" in invoice_json.lower():
+            question = "Wie viele Stunden wurden abgerechnet?"
+        else:
+            question = "Welche Positionen wurden abgerechnet?"
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -183,3 +181,22 @@ async def voice_conversation(
         "pdf_url": pdf_url,
         "transcript": full_transcript,
     }
+
+
+@router.post("/conversation/")
+async def voice_conversation(
+    session_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+    """Führt eine dialogorientierte Aufnahme durch."""
+
+    audio_bytes = await file.read()
+    transcript_part = transcribe_audio(audio_bytes)
+    return _handle_conversation(session_id, transcript_part, audio_bytes)
+
+
+@router.post("/conversation-text/")
+async def text_conversation(session_id: str = Form(...), text: str = Form(...)):
+    """Dialog über Texteingabe."""
+
+    return _handle_conversation(session_id, text, b"")
