@@ -11,14 +11,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const fd = new FormData();
     fd.append('file', fileInput.files[0]);
 
-    const resp = await fetch('/process-audio/', { method: 'POST', body: fd });
-    const data = await resp.json();
+    let data;
+    try {
+      const resp = await fetch('/process-audio/', { method: 'POST', body: fd });
+      data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.detail || 'Fehler beim Verarbeiten');
+      }
+    } catch (err) {
+      result.textContent = err.message;
+      fileInput.value = '';
+      return;
+    }
+
+    const transcript = data.transcript ?? 'Keine Transkription erkannt.';
+    const invoice = data.invoice
+      ? JSON.stringify(data.invoice, null, 2)
+      : 'Keine Rechnungsdaten extrahiert.';
 
     result.innerHTML = `
       <p class="font-semibold">Transkript:</p>
-      <p class="mb-2">${data.transcript}</p>
+      <p class="mb-2">${transcript}</p>
       <p class="font-semibold">Rechnungsdaten:</p>
-      <pre class="bg-gray-100 p-2 rounded text-sm">${JSON.stringify(data.invoice, null, 2)}</pre>
+      <pre class="bg-gray-100 p-2 rounded text-sm">${invoice}</pre>
     `;
 
     if (data.pdf_url) {
