@@ -13,6 +13,7 @@ from app.billing_adapter import send_to_billing_system
 from app.llm_agent import extract_invoice_context
 from app.models import (
     InvoiceContext,
+    InvoiceItem,
     missing_invoice_fields,
     parse_invoice_context,
 )
@@ -101,17 +102,34 @@ async def voice_conversation(
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     invoice_json = extract_invoice_context(full_transcript)
     parse_error = False
+    placeholder_notice = False
     try:
         invoice = parse_invoice_context(invoice_json)
         INVOICE_STATE[session_id] = invoice
     except ValueError:
         parse_error = True
-        invoice = INVOICE_STATE.get(
-            session_id,
-            InvoiceContext(
-                type="InvoiceContext", customer={}, service={}, items=[], amount={}
-            ),
-        )
+        if session_id in INVOICE_STATE:
+            invoice = INVOICE_STATE[session_id]
+        else:
+            invoice = InvoiceContext(
+                type="InvoiceContext",
+                customer={"name": "Unbekannter Kunde"},
+                service={"description": "Dienstleistung nicht näher beschrieben"},
+                items=[
+                    InvoiceItem(
+                        description="Arbeitszeit Geselle",
+                        category="labor",
+                        quantity=1.0,
+                        unit="h",
+                        unit_price=0.0,
+                        worker_role="Geselle",
+                    )
+                ],
+                amount={},
+            )
+            apply_pricing(invoice)
+            INVOICE_STATE[session_id] = invoice
+            placeholder_notice = True
 
     missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
     # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
@@ -131,7 +149,7 @@ async def voice_conversation(
     pdf_path = str(Path(log_dir) / "invoice.pdf")
     pdf_url = "/" + pdf_path.replace("\\", "/")
 
-    if parse_error and session_id in INVOICE_STATE:
+    if parse_error and session_id in INVOICE_STATE and not placeholder_notice:
         question = "Wie viele Stunden wurden abgerechnet?"
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
@@ -172,6 +190,8 @@ async def voice_conversation(
         "Vorläufige Rechnung für "
         f"{invoice.customer['name']} über {invoice.amount['total']} Euro erstellt."
     )
+    if placeholder_notice:
+        message = "Hinweis: Platzhalter verwendet. " + message
     audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
     return {
         "done": True,
