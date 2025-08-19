@@ -130,7 +130,18 @@ def test_transcribe_audio_normalized(monkeypatch):
         transcriber, "OpenAI", lambda: DummyOpenAI("eine Geseldenstunde")
     )
     result = transcriber.transcribe_audio(b"audio")
-    assert result == "eine Gesellenstunde"
+    assert result == "1 Gesellenstunde"
+
+
+def test_transcribe_audio_number_words(monkeypatch):
+    """Wandelt ausgeschriebene Zahlen in Ziffern um."""
+    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
+    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
+    monkeypatch.setattr(
+        transcriber, "OpenAI", lambda: DummyOpenAI("eine Stunde und zwei Kilometer")
+    )
+    result = transcriber.transcribe_audio(b"audio")
+    assert result == "1 Stunde und 2 Kilometer"
 
 
 def test_transcribe_audio_command(monkeypatch):

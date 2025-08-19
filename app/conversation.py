@@ -95,6 +95,7 @@ def _handle_conversation(
     SESSIONS[session_id] = full_transcript
 
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
+    had_state = session_id in INVOICE_STATE
     invoice_json = extract_invoice_context(full_transcript)
     parse_error = False
     placeholder_notice = False
@@ -102,7 +103,7 @@ def _handle_conversation(
         invoice = parse_invoice_context(invoice_json)
     except ValueError:
         parse_error = True
-        if session_id in INVOICE_STATE:
+        if had_state:
             invoice = INVOICE_STATE[session_id]
         else:
             invoice = InvoiceContext(
@@ -145,7 +146,7 @@ def _handle_conversation(
     pdf_path = str(Path(log_dir) / "invoice.pdf")
     pdf_url = "/" + pdf_path.replace("\\", "/")
 
-    if parse_error and session_id in INVOICE_STATE:
+    if parse_error and had_state:
         if "stund" in invoice_json.lower():
             question = "Wie viele Stunden wurden abgerechnet?"
         else:

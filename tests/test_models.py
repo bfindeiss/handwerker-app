@@ -57,6 +57,29 @@ def test_parse_invoice_context_with_comments_and_trailing_commas():
     assert invoice.amount["total"] == 5
 
 
+def test_parse_invoice_context_currency_unit_total():
+    data = {
+        "type": "InvoiceContext",
+        "customer": {},
+        "service": {},
+        "items": [
+            {
+                "description": "Materialkosten",
+                "category": "material",
+                "quantity": 100.0,
+                "unit": "Euro",
+                "unit_price": 34.62,
+            }
+        ],
+        "amount": {},
+    }
+    invoice = parse_invoice_context(json.dumps(data))
+    item = invoice.items[0]
+    assert item.quantity == 1.0
+    assert item.unit_price == 100.0
+    assert item.unit == "EUR"
+
+
 @pytest.mark.parametrize(
     "description",
     ["Anfahrt zur Baustelle", "Fahrtkosten zur Baustelle", "Kilometerpauschale"],

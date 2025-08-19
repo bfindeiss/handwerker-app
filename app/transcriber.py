@@ -7,6 +7,7 @@ from io import BytesIO
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess  # nosec B404
 import tempfile
@@ -158,8 +159,58 @@ def _load_transcript_replacements() -> dict[str, str]:
 _TRANSCRIPT_REPLACEMENTS = _load_transcript_replacements()
 
 
+_NUMBER_WORDS = {
+    "null": "0",
+    "eins": "1",
+    "ein": "1",
+    "eine": "1",
+    "einen": "1",
+    "zwei": "2",
+    "drei": "3",
+    "vier": "4",
+    "fünf": "5",
+    "fuenf": "5",
+    "sechs": "6",
+    "sieben": "7",
+    "acht": "8",
+    "neun": "9",
+    "zehn": "10",
+    "elf": "11",
+    "zwölf": "12",
+    "zwoelf": "12",
+    "dreizehn": "13",
+    "vierzehn": "14",
+    "fünfzehn": "15",
+    "funfzehn": "15",
+    "sechzehn": "16",
+    "siebzehn": "17",
+    "achtzehn": "18",
+    "neunzehn": "19",
+    "zwanzig": "20",
+    "dreißig": "30",
+    "dreissig": "30",
+    "vierzig": "40",
+    "fünfzig": "50",
+    "funfzig": "50",
+    "sechzig": "60",
+    "siebzig": "70",
+    "achtzig": "80",
+    "neunzig": "90",
+    "hundert": "100",
+}
+
+
+def _replace_number_words(text: str) -> str:
+    pattern = r"\b(" + "|".join(re.escape(w) for w in _NUMBER_WORDS.keys()) + r")\b"
+
+    def repl(match: re.Match[str]) -> str:
+        return _NUMBER_WORDS[match.group(0).lower()]
+
+    return re.sub(pattern, repl, text, flags=re.IGNORECASE)
+
+
 def _normalize_transcript(text: str) -> str:
     """Korrigiert häufige Erkennungsfehler im Transkript."""
     for wrong, correct in _TRANSCRIPT_REPLACEMENTS.items():
         text = text.replace(wrong, correct)
-    return text
+    return _replace_number_words(text)
