@@ -70,13 +70,20 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
         raise ValueError("invalid invoice context") from exc
 
     # Nach dem Parsen prüfen wir jede Rechnungsposition auf Schlüsselwörter,
-    # die auf Reisekosten hindeuten. Wenn die Kategorie noch nicht "travel"
-    # ist, korrigieren wir sie entsprechend.
+    # die auf Reisekosten hindeuten. Zusätzlich normalisieren wir Positionen,
+    # die fälschlicherweise als Währungsmenge interpretiert wurden.
     travel_keywords = ("anfahrt", "fahrtkosten", "kilometer")
+    currency_units = {"euro", "eur", "€"}
     for item in invoice.items:
         desc = item.description.casefold()
         if item.category != "travel" and any(kw in desc for kw in travel_keywords):
             item.category = "travel"
+        unit = (item.unit or "").strip().casefold()
+        if unit in currency_units:
+            value = max(item.quantity, item.unit_price)
+            item.quantity = 1.0
+            item.unit_price = value
+            item.unit = "EUR"
     return invoice
 
 
