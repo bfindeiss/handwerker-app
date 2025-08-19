@@ -7,7 +7,21 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="h-screen flex flex-col bg-gray-100">
-  <header class="bg-blue-600 text-white text-center py-4 text-2xl font-semibold">Handwerker Sprachassistent</header>
+  <header class="bg-blue-600 text-white py-4 text-2xl font-semibold flex justify-between items-center px-4">
+    <span>Handwerker Sprachassistent</span>
+    <button id="helpToggle" class="text-lg bg-blue-500 hover:bg-blue-700 px-2 py-1 rounded">?</button>
+  </header>
+  <section id="helpPanel" class="hidden bg-white p-4 shadow"> 
+    <h2 class="text-xl font-semibold mb-2">Tutorial &amp; Möglichkeiten</h2>
+    <p class="mb-2">Der Assistent hilft dabei, Rechnungsdaten per Sprache zu erfassen und als PDF zu speichern. Sprechen Sie Ihre Angaben ein, fehlende Informationen werden nachgefragt.</p>
+    <h3 class="font-semibold mt-2">Beispielprompts</h3>
+    <ul class="list-disc list-inside space-y-1 text-sm">
+      <li>„Speichere meinen Firmennamen Handwerker GmbH.“</li>
+      <li>„Der Kunde heißt Max Mustermann.“</li>
+      <li>„Die Dienstleistung war eine Heizungsreparatur.“</li>
+      <li>„Füge 10 Meter Kabel zu je 2 Euro hinzu.“</li>
+    </ul>
+  </section>
   <main id="chat" class="flex-1 overflow-y-auto p-4 space-y-4"></main>
   <div class="p-4 bg-white flex flex-col items-center">
     <button id="record" class="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-2xl shadow-lg transition-colors">🎤</button>

@@ -11,6 +11,8 @@ def mask_pii(text: str | None) -> str | None:
     text = re.sub(r"[\w.+-]+@[\w-]+\.[\w.-]+", "[email]", text)
     return re.sub(r"\d", "X", text)
 
+from app.request_id import RequestIdFilter
+
 
 def configure_logging() -> None:
     """Setzt ein Logging-Format und schreibt Debug in eine separate Datei."""
@@ -32,3 +34,11 @@ def configure_logging() -> None:
     file_handler.setFormatter(formatter)
 
     root.handlers = [console, file_handler]
+    """Setzt ein einfaches Logging-Format für die gesamte Anwendung."""
+    # ``basicConfig`` reicht hier aus – es erstellt automatisch einen Root-Logger
+    # und schreibt Nachrichten auf die Konsole.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] [%(request_id)s] %(message)s",
+    )
+    logging.getLogger().addFilter(RequestIdFilter())
