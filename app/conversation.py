@@ -55,6 +55,62 @@ def _save_env_value(key: str, value: str) -> None:
     ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> InvoiceContext:
+    """Merge ``new`` invoice data into ``existing`` without overwriting user input.
+
+    Bereits gesetzte Werte im bestehenden Rechnungszustand bleiben erhalten.
+    Neue Positionen werden hinzugefügt und fehlende Details ergänzt. Mengen
+    oder Preise werden nur überschrieben, wenn sie im bestehenden Zustand
+    noch nicht gesetzt waren (z.\u202fB. 0 als Platzhalter).
+    """
+
+    merged = existing.model_copy(deep=True)
+
+    item_map = {
+        (i.category, i.description, i.worker_role): i for i in merged.items
+    }
+
+    service_placeholder = (
+        merged.service.get("description")
+        in (None, "", "Dienstleistung nicht näher beschrieben")
+    )
+
+    for item in new.items:
+        key = (item.category, item.description, item.worker_role)
+        existing_item = item_map.get(key)
+        if existing_item:
+            if service_placeholder:
+                if item.quantity:
+                    existing_item.quantity = item.quantity
+                if item.unit_price:
+                    existing_item.unit_price = item.unit_price
+                if item.unit:
+                    existing_item.unit = item.unit
+            else:
+                if not existing_item.quantity and item.quantity:
+                    existing_item.quantity = item.quantity
+                if not existing_item.unit_price and item.unit_price:
+                    existing_item.unit_price = item.unit_price
+                if not existing_item.unit and item.unit:
+                    existing_item.unit = item.unit
+        else:
+            merged.items.append(item)
+
+    if (
+        merged.customer.get("name") in (None, "", "Unbekannter Kunde")
+        and new.customer.get("name")
+    ):
+        merged.customer["name"] = new.customer["name"]
+    if (
+        merged.service.get("description")
+        in (None, "", "Dienstleistung nicht näher beschrieben")
+        and new.service.get("description")
+    ):
+        merged.service["description"] = new.service["description"]
+
+    return merged
+
+
 def fill_default_fields(invoice: InvoiceContext) -> None:
     """Ergänzt fehlende Pflichtfelder durch Platzhalter."""
 
@@ -100,7 +156,11 @@ def _handle_conversation(
     parse_error = False
     placeholder_notice = False
     try:
-        invoice = parse_invoice_context(invoice_json)
+        parsed = parse_invoice_context(invoice_json)
+        if had_state:
+            invoice = merge_invoice_data(INVOICE_STATE[session_id], parsed)
+        else:
+            invoice = parsed
     except ValueError:
         parse_error = True
         if had_state:
