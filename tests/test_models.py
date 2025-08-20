@@ -156,6 +156,26 @@ def test_parse_invoice_context_corrects_travel_category(description: str):
     assert invoice.items[0].category == "travel"
 
 
+def test_parse_invoice_context_corrects_labor_category():
+    data = {
+        "type": "InvoiceContext",
+        "customer": {},
+        "service": {},
+        "items": [
+            {
+                "description": "1 Handwerkerstunde",
+                "category": "service",
+                "quantity": 1,
+                "unit": "h",
+                "unit_price": 40,
+            }
+        ],
+        "amount": {},
+    }
+    invoice = parse_invoice_context(json.dumps(data))
+    assert invoice.items[0].category == "labor"
+
+
 def test_missing_invoice_fields():
     invoice = InvoiceContext(
         type="InvoiceContext", customer={}, service={}, items=[], amount={}

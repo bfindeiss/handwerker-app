@@ -63,27 +63,35 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
         data = json.loads(cleaned)
     except json.JSONDecodeError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
+
+    travel_keywords = ("anfahrt", "fahrtkosten", "kilometer")
+    currency_units = {"euro", "eur", "€"}
+    labor_keywords = ("stund", "arbeitszeit", "handwerker")
+    labor_units = {"h", "std", "stunde", "stunden"}
+
+    data.setdefault("items", [])
+    for raw in data["items"]:
+        desc = (raw.get("description") or "").casefold()
+        unit = (raw.get("unit") or "").strip().casefold()
+        cat = (raw.get("category") or "").casefold()
+
+        if any(kw in desc for kw in travel_keywords):
+            raw["category"] = "travel"
+        elif unit in labor_units or any(kw in desc for kw in labor_keywords):
+            raw["category"] = "labor"
+        elif cat not in {"material", "travel", "labor"}:
+            raw["category"] = "material"
+
+        if unit in currency_units:
+            value = max(raw.get("quantity", 0), raw.get("unit_price", 0))
+            raw["quantity"] = 1.0
+            raw["unit_price"] = value
+            raw["unit"] = "EUR"
+
     try:
-        data.setdefault("items", [])
         invoice = InvoiceContext(**data)
     except ValidationError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
-
-    # Nach dem Parsen prüfen wir jede Rechnungsposition auf Schlüsselwörter,
-    # die auf Reisekosten hindeuten. Zusätzlich normalisieren wir Positionen,
-    # die fälschlicherweise als Währungsmenge interpretiert wurden.
-    travel_keywords = ("anfahrt", "fahrtkosten", "kilometer")
-    currency_units = {"euro", "eur", "€"}
-    for item in invoice.items:
-        desc = item.description.casefold()
-        if item.category != "travel" and any(kw in desc for kw in travel_keywords):
-            item.category = "travel"
-        unit = (item.unit or "").strip().casefold()
-        if unit in currency_units:
-            value = max(item.quantity, item.unit_price)
-            item.quantity = 1.0
-            item.unit_price = value
-            item.unit = "EUR"
 
     # Platzhalter ohne Beschreibung oder Preis entfernen. Wir behalten
     # Positionen mit Menge 0, sofern ein Preis angegeben wurde, da LLMs
