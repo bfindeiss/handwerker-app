@@ -103,6 +103,7 @@ def test_material_lookup_and_vat():
     assert invoice.amount["tax"] == pytest.approx(invoice.amount["net"] * settings.vat_rate)
 
 
+
 def test_repricing_after_item_changes():
     invoice = _base_invoice([
         InvoiceItem(
@@ -112,6 +113,15 @@ def test_repricing_after_item_changes():
             unit="h",
             unit_price=0,
             worker_role="Geselle",
+
+def test_apply_pricing_material_placeholder_uses_defaults():
+    invoice = _base_invoice([
+        InvoiceItem(
+            description="Material",
+            category="material",
+            quantity=0,
+            unit="stk",
+            unit_price=0,
         )
     ])
 
@@ -141,3 +151,5 @@ def test_repricing_after_item_changes():
     assert invoice.amount["net"] == pytest.approx(original["net"])
     assert invoice.amount["tax"] == pytest.approx(original["tax"])
     assert invoice.amount["total"] == pytest.approx(original["total"])
+    expected = settings.material_rate_default or 0
+    assert invoice.items[0].unit_price == expected
