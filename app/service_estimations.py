@@ -7,9 +7,11 @@ from app.service_templates import SERVICE_TEMPLATES
 def estimate_labor_item(service_description: str) -> InvoiceItem:
     """Erzeugt eine Standard-Arbeitsposition basierend auf der Dienstleistung."""
     desc = (service_description or "").lower()
-    hours = 8.0
+    hours = 1.0
     if "malen" in desc or "streichen" in desc:
         hours = 4.0
+    elif "fenster" in desc:
+        hours = 5.0
     elif "dusche" in desc:
         hours = 8.0
     return InvoiceItem(
