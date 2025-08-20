@@ -33,6 +33,30 @@ INVOICE_STATE: Dict[str, InvoiceContext] = {}
 # Pfad zur Konfigurationsdatei
 ENV_PATH = Path(".env")
 
+# Platzhalter, die von LLMs häufig für Kundennamen verwendet werden
+_CUSTOMER_NAME_PLACEHOLDERS = {
+    "john doe",
+    "jane doe",
+    "max mustermann",
+    "erika mustermann",
+}
+
+
+def _user_set_customer_name(name: str | None, transcript: str | None = None) -> bool:
+    """Prüft, ob ein Kundenname vom Nutzer stammt."""
+
+    if not name:
+        return False
+
+    lowered = name.strip().casefold()
+    if lowered in _CUSTOMER_NAME_PLACEHOLDERS:
+        return False
+
+    if transcript is not None and lowered not in transcript.casefold():
+        return False
+
+    return True
+
 
 def _save_env_value(key: str, value: str) -> None:
     """Persistiert einen Schlüssel-Wert-Paar in ``.env``."""
@@ -98,7 +122,7 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
 
     if (
         merged.customer.get("name") in (None, "", "Unbekannter Kunde")
-        and new.customer.get("name")
+        and _user_set_customer_name(new.customer.get("name"))
     ):
         merged.customer["name"] = new.customer["name"]
     if (
@@ -157,6 +181,10 @@ def _handle_conversation(
     placeholder_notice = False
     try:
         parsed = parse_invoice_context(invoice_json)
+        if not _user_set_customer_name(
+            parsed.customer.get("name"), full_transcript
+        ):
+            parsed.customer.pop("name", None)
         if had_state:
             invoice = merge_invoice_data(INVOICE_STATE[session_id], parsed)
         else:

@@ -322,3 +322,47 @@ def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
     assert data["invoice"]["service"]["description"] == "Fenster"
     assert data["question"]
     assert "Wie heißt der Kunde" not in data["question"]
+
+
+def test_conversation_ignores_auto_customer_name(monkeypatch, tmp_data_dir):
+    """LLM eingefügte Kundennamen werden verworfen."""
+
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "nur text")
+
+    def fake_extract(text):
+        return json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {"name": "John Doe"},
+                "service": {"description": "Malen"},
+                "items": [
+                    {
+                        "description": "Arbeitszeit Geselle",
+                        "category": "labor",
+                        "quantity": 1,
+                        "unit": "h",
+                        "unit_price": 40,
+                        "worker_role": "Geselle",
+                    }
+                ],
+                "amount": {"total": 40, "currency": "EUR"},
+            }
+        )
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": "ignore"},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
