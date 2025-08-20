@@ -146,6 +146,26 @@ def _handle_conversation(
             "transcript": SESSIONS.get(session_id, ""),
         }
 
+    # Prüft auf Befehle wie "Position X löschen".
+    m = re.search(r"position\s+(\d+)\s+löschen", transcript_part, re.IGNORECASE)
+    if m:
+        idx = int(m.group(1))
+        invoice = INVOICE_STATE.get(session_id)
+        if invoice and 1 <= idx <= len(invoice.items):
+            del invoice.items[idx - 1]
+            apply_pricing(invoice)
+            INVOICE_STATE[session_id] = invoice
+            message = f"Position {idx} gelöscht."
+        else:
+            message = f"Position {idx} nicht gefunden."
+        audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+        return {
+            "done": False,
+            "message": message,
+            "audio": audio_b64,
+            "transcript": SESSIONS.get(session_id, ""),
+        }
+
     # Neues Transkript zur Session hinzufügen.
     full_transcript = (SESSIONS.get(session_id, "") + " " + transcript_part).strip()
     SESSIONS[session_id] = full_transcript
