@@ -10,7 +10,9 @@ DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
 
-def store_interaction(audio: bytes, transcript: str, invoice: InvoiceContext) -> str:
+def store_interaction(
+    audio: bytes, transcript: list[dict[str, str]] | str, invoice: InvoiceContext
+) -> str:
     """Speichert alle Artefakte einer Sitzung unter ``data/<timestamp>/``."""
 
     # Ein ISO-Zeitstempel dient als eindeutiger Ordnername.
@@ -18,9 +20,19 @@ def store_interaction(audio: bytes, transcript: str, invoice: InvoiceContext) ->
     session_dir = DATA_DIR / timestamp
     session_dir.mkdir(parents=True, exist_ok=True)
 
+    # Transcript in strukturierter Form sichern
+    if isinstance(transcript, str):
+        messages = [{"role": "user", "content": transcript}]
+    else:
+        messages = transcript
+    (session_dir / "transcript.json").write_text(
+        json.dumps(messages, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    text = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
+    (session_dir / "transcript.txt").write_text(text, encoding="utf-8")
+
     # Rohdaten persistieren
     (session_dir / "audio.wav").write_bytes(audio)
-    (session_dir / "transcript.txt").write_text(transcript, encoding="utf-8")
     (session_dir / "invoice.json").write_text(
         json.dumps(invoice.model_dump(mode="json"), ensure_ascii=False, indent=2),
         encoding="utf-8",

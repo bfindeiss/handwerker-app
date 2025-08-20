@@ -264,6 +264,7 @@ def test_store_interaction(tmp_data_dir):
     p = Path(session_dir)
     assert (p / "audio.wav").exists()
     assert (p / "transcript.txt").exists()
+    assert (p / "transcript.json").exists()
     assert (p / "invoice.json").exists()
     assert (p / "invoice.pdf").exists()
 
