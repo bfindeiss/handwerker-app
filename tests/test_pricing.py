@@ -111,7 +111,7 @@ def test_apply_pricing_material_placeholder_uses_defaults():
             quantity=0,
             unit="stk",
             unit_price=0,
-        )
+        ),
     ])
 
     apply_pricing(invoice)
