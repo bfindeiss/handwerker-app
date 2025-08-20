@@ -25,7 +25,13 @@ def apply_pricing(invoice: InvoiceContext) -> None:
             # always use configured travel rate, even if a price was provided
             item.unit_price = settings.travel_rate_per_km
         elif not item.unit_price:
-            _apply_item_price(item)
+            try:
+                _apply_item_price(item)
+            except HTTPException:
+                if item.quantity == 0:
+                    item.unit_price = settings.material_rate_default or 0.0
+                else:
+                    raise
 
     net = sum(i.total for i in invoice.items)
     tax = round(net * settings.vat_rate, 2)
