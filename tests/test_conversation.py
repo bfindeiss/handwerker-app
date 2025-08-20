@@ -1,12 +1,15 @@
 import os
 import sys
 import json
+import pytest
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.main import app  # noqa: E402
 import app.conversation as conversation  # noqa: E402
+from app.models import InvoiceContext, InvoiceItem  # noqa: E402
+from app.pricing import apply_pricing  # noqa: E402
 
 
 def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
@@ -322,3 +325,58 @@ def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
     assert data["invoice"]["service"]["description"] == "Fenster"
     assert data["question"]
     assert "Wie heißt der Kunde" not in data["question"]
+
+
+def test_conversation_delete_position(monkeypatch):
+    """Removes an invoice item when requested."""
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+
+    session_id = "del"
+    invoice = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": "Kunde"},
+        service={"description": "Service"},
+        items=[
+            InvoiceItem(
+                description="Alt",
+                category="labor",
+                quantity=1,
+                unit="h",
+                unit_price=40,
+                worker_role="Geselle",
+            ),
+            InvoiceItem(
+                description="Neu",
+                category="material",
+                quantity=1,
+                unit="stk",
+                unit_price=10,
+            ),
+        ],
+        amount={},
+    )
+    apply_pricing(invoice)
+    conversation.INVOICE_STATE[session_id] = invoice
+
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Position 1 löschen")
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+    monkeypatch.setattr(
+        conversation, "extract_invoice_context", lambda t: pytest.fail("should not be called")
+    )
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert "gelöscht" in data["message"].lower()
+
+    invoice = conversation.INVOICE_STATE[session_id]
+    assert len(invoice.items) == 1
+    assert invoice.items[0].description == "Neu"
+    assert invoice.amount["total"] == pytest.approx(11.9, abs=0.01)
