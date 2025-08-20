@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from fastapi import APIRouter, File, Form, UploadFile
 
@@ -26,7 +26,7 @@ from app.tts import text_to_speech
 router = APIRouter()
 
 # Zwischenspeicher für laufende Konversationen
-SESSIONS: Dict[str, str] = {}
+SESSIONS: Dict[str, List[Dict[str, str]]] = {}
 # Zuletzt erfolgreicher Rechnungszustand pro Session
 INVOICE_STATE: Dict[str, InvoiceContext] = {}
 
@@ -191,7 +191,9 @@ def _handle_conversation(
             "done": False,
             "message": message,
             "audio": audio_b64,
-            "transcript": SESSIONS.get(session_id, ""),
+            "transcript": " ".join(
+                m["content"] for m in SESSIONS.get(session_id, [])
+            ),
         }
 
     # Prüft auf Befehle wie "Position X löschen".
@@ -215,8 +217,11 @@ def _handle_conversation(
         }
 
     # Neues Transkript zur Session hinzufügen.
-    full_transcript = (SESSIONS.get(session_id, "") + " " + transcript_part).strip()
-    SESSIONS[session_id] = full_transcript
+    session_msgs = SESSIONS.setdefault(session_id, [])
+    session_msgs.append({"role": "user", "content": transcript_part})
+    full_transcript = " ".join(
+        m["content"] for m in session_msgs if m["role"] == "user"
+    )
 
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     had_state = session_id in INVOICE_STATE
@@ -293,15 +298,15 @@ def _handle_conversation(
     if set(missing).issubset({"customer.name", "service.description"}):
         missing = []
 
-    log_dir = store_interaction(audio_bytes, full_transcript, invoice)
-    pdf_path = str(Path(log_dir) / "invoice.pdf")
-    pdf_url = "/" + pdf_path.replace("\\", "/")
-
     if parse_error and had_state:
         if "stund" in invoice_json.lower():
             question = "Wie viele Stunden wurden abgerechnet?"
         else:
             question = "Welche Positionen wurden abgerechnet?"
+        session_msgs.append({"role": "assistant", "content": question})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -323,6 +328,10 @@ def _handle_conversation(
         }
         question_lines = [question_map.get(f, f) for f in missing]
         question = "\n".join(question_lines)
+        session_msgs.append({"role": "assistant", "content": question})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -343,6 +352,10 @@ def _handle_conversation(
     )
     if placeholder_notice:
         message = "Hinweis: Platzhalter verwendet. " + message
+    session_msgs.append({"role": "assistant", "content": message})
+    log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+    pdf_path = str(Path(log_dir) / "invoice.pdf")
+    pdf_url = "/" + pdf_path.replace("\\", "/")
     audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
     return {
         "done": True,
