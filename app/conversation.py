@@ -166,6 +166,15 @@ def _handle_conversation(
         if had_state:
             invoice = INVOICE_STATE[session_id]
         else:
+            distance = 0.0
+            m_distance = re.search(
+                r"(\d+(?:[.,]\d+)?)\s*(?:km|kilometer)",
+                full_transcript,
+                re.IGNORECASE,
+            )
+            if m_distance:
+                distance = float(m_distance.group(1).replace(",", "."))
+
             invoice = InvoiceContext(
                 type="InvoiceContext",
                 customer={"name": "Unbekannter Kunde"},
@@ -178,7 +187,21 @@ def _handle_conversation(
                         unit="h",
                         unit_price=0.0,
                         worker_role="Geselle",
-                    )
+                    ),
+                    InvoiceItem(
+                        description="Material",
+                        category="material",
+                        quantity=0.0,
+                        unit="stk",
+                        unit_price=0.0,
+                    ),
+                    InvoiceItem(
+                        description="Anfahrt",
+                        category="travel",
+                        quantity=distance,
+                        unit="km",
+                        unit_price=0.0,
+                    ),
                 ],
                 amount={},
             )

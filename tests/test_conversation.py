@@ -83,7 +83,7 @@ def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     """Even on parse errors a provisional invoice is returned."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
-    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "kaputt")
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "kaputt 7 km")
     monkeypatch.setattr(conversation, "extract_invoice_context", lambda t: "invalid")
     monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
     monkeypatch.setattr(
@@ -103,6 +103,12 @@ def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     assert "Platzhalter" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
     assert any(item["category"] == "labor" for item in data["invoice"]["items"])
+    assert any(item["category"] == "material" for item in data["invoice"]["items"])
+    assert any(item["category"] == "travel" for item in data["invoice"]["items"])
+    travel_item = next(
+        item for item in data["invoice"]["items"] if item["category"] == "travel"
+    )
+    assert travel_item["quantity"] == 7.0
 
 
 def test_conversation_parse_error_keeps_state(monkeypatch, tmp_data_dir):
