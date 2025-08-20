@@ -101,3 +101,43 @@ def test_material_lookup_and_vat():
 
     assert invoice.items[0].unit_price == 0.10
     assert invoice.amount["tax"] == pytest.approx(invoice.amount["net"] * settings.vat_rate)
+
+
+def test_repricing_after_item_changes():
+    invoice = _base_invoice([
+        InvoiceItem(
+            description="Arbeit",
+            category="labor",
+            quantity=1,
+            unit="h",
+            unit_price=0,
+            worker_role="Geselle",
+        )
+    ])
+
+    apply_pricing(invoice)
+
+    original = invoice.amount.copy()
+
+    # Neuer Posten hinzufügen – Preise sollten automatisch neu berechnet werden
+    invoice.add_item(
+        InvoiceItem(
+            description="Anfahrt",
+            category="travel",
+            quantity=5,
+            unit="km",
+            unit_price=0,
+        )
+    )
+
+    assert invoice.amount["net"] == pytest.approx(sum(i.total for i in invoice.items))
+    assert invoice.amount["tax"] == pytest.approx(invoice.amount["net"] * settings.vat_rate)
+    assert invoice.amount["total"] == pytest.approx(
+        invoice.amount["net"] + invoice.amount["tax"]
+    )
+
+    # Posten wieder entfernen – ursprüngliche Beträge sollten zurückkehren
+    invoice.remove_item(1)
+    assert invoice.amount["net"] == pytest.approx(original["net"])
+    assert invoice.amount["tax"] == pytest.approx(original["tax"])
+    assert invoice.amount["total"] == pytest.approx(original["total"])

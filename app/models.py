@@ -37,6 +37,22 @@ class InvoiceContext(BaseModel):
     invoice_number: Optional[str] = None
     issue_date: Optional[date] = None
 
+    def add_item(self, item: InvoiceItem) -> None:
+        """Fügt eine neue Rechnungsposition hinzu und berechnet Preise neu."""
+        self.items.append(item)
+        # Lokaler Import, um Zirkularimporte zu vermeiden
+        from app.pricing import apply_pricing
+
+        apply_pricing(self)
+
+    def remove_item(self, index: int) -> InvoiceItem:
+        """Entfernt eine Rechnungsposition und berechnet Preise neu."""
+        removed = self.items.pop(index)
+        from app.pricing import apply_pricing
+
+        apply_pricing(self)
+        return removed
+
 
 def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
     """JSON-Text in das ``InvoiceContext``-Modell überführen."""

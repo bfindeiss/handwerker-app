@@ -94,7 +94,7 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
                 if not existing_item.unit and item.unit:
                     existing_item.unit = item.unit
         else:
-            merged.items.append(item)
+            merged.add_item(item)
 
     if (
         merged.customer.get("name") in (None, "", "Unbekannter Kunde")
@@ -189,7 +189,7 @@ def _handle_conversation(
     # Platzhalter und geschätzte Arbeitszeit ergänzen.
     fill_default_fields(invoice)
     if not any(item.category == "labor" for item in invoice.items):
-        invoice.items.append(
+        invoice.add_item(
             estimate_labor_item(invoice.service.get("description", ""))
         )
 
