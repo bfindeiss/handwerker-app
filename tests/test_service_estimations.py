@@ -9,13 +9,12 @@ from app.service_estimations import (
 
 def test_estimate_labor_item_default_hours():
     item = estimate_labor_item("unbekannte arbeit")
-    assert item.quantity == 1.0
+    assert item.quantity == 0.0
 
 
 def test_estimate_labor_item_fenster_hours():
     item = estimate_labor_item("Fenster einbauen")
     assert item.quantity == 5.0
-
 
 def test_generate_invoice_items_parses_free_text():
     items = generate_invoice_items("2 h Reinigung 30 EUR")

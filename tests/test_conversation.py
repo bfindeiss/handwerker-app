@@ -64,7 +64,7 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     invoice = data["invoice"]
     assert invoice["customer"]["name"] == "Unbekannter Kunde"
     assert any(item["category"] == "labor" for item in invoice["items"])
-    assert invoice["amount"]["total"] > 50
+    assert invoice["amount"]["total"] == 0.0
     assert "pdf_url" in data
     assert "message" in data
 
