@@ -13,6 +13,7 @@ types-PyYAML
 pytest
 pytest-cov
 reportlab
+pypdf
 elevenlabs
 openai-whisper
 numpy

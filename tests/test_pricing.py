@@ -19,23 +19,25 @@ def _base_invoice(items):
 
 
 def test_apply_pricing_defaults():
-    invoice = _base_invoice([
-        InvoiceItem(
-            description="Fahrt",
-            category="travel",
-            quantity=10,
-            unit="km",
-            unit_price=0,
-        ),
-        InvoiceItem(
-            description="Arbeit",
-            category="labor",
-            quantity=2,
-            unit="h",
-            unit_price=0,
-            worker_role="Geselle",
-        ),
-    ])
+    invoice = _base_invoice(
+        [
+            InvoiceItem(
+                description="Fahrt",
+                category="travel",
+                quantity=10,
+                unit="km",
+                unit_price=0,
+            ),
+            InvoiceItem(
+                description="Arbeit",
+                category="labor",
+                quantity=2,
+                unit="h",
+                unit_price=0,
+                worker_role="Geselle",
+            ),
+        ]
+    )
 
     apply_pricing(invoice)
 
@@ -56,15 +58,17 @@ def test_apply_pricing_defaults():
 
 def test_apply_pricing_travel_overrides_unit_price():
     """Provided travel prices are overridden by the configured rate."""
-    invoice = _base_invoice([
-        InvoiceItem(
-            description="Fahrt",
-            category="travel",
-            quantity=5,
-            unit="km",
-            unit_price=123.45,
-        )
-    ])
+    invoice = _base_invoice(
+        [
+            InvoiceItem(
+                description="Fahrt",
+                category="travel",
+                quantity=5,
+                unit="km",
+                unit_price=123.45,
+            )
+        ]
+    )
 
     apply_pricing(invoice)
 
@@ -72,35 +76,41 @@ def test_apply_pricing_travel_overrides_unit_price():
 
 
 def test_apply_pricing_material_missing():
-    invoice = _base_invoice([
-        InvoiceItem(
-            description="Material",
-            category="material",
-            quantity=1,
-            unit="stk",
-            unit_price=0,
-        )
-    ])
+    invoice = _base_invoice(
+        [
+            InvoiceItem(
+                description="Material",
+                category="material",
+                quantity=1,
+                unit="stk",
+                unit_price=0,
+            )
+        ]
+    )
 
     with pytest.raises(HTTPException):
         apply_pricing(invoice)
 
 
 def test_material_lookup_and_vat():
-    invoice = _base_invoice([
-        InvoiceItem(
-            description="Schraube",
-            category="material",
-            quantity=10,
-            unit="stk",
-            unit_price=0,
-        )
-    ])
+    invoice = _base_invoice(
+        [
+            InvoiceItem(
+                description="Schraube",
+                category="material",
+                quantity=10,
+                unit="stk",
+                unit_price=0,
+            )
+        ]
+    )
 
     apply_pricing(invoice)
 
     assert invoice.items[0].unit_price == 0.10
-    assert invoice.amount["tax"] == pytest.approx(invoice.amount["net"] * settings.vat_rate)
+    assert invoice.amount["tax"] == pytest.approx(
+        invoice.amount["net"] * settings.vat_rate
+    )
 
 
 def test_repricing_after_item_changes():
@@ -145,7 +155,7 @@ def test_apply_pricing_material_placeholder_uses_defaults():
                 quantity=0,
                 unit="stk",
                 unit_price=0,
-            ),
+            )
         ]
     )
 

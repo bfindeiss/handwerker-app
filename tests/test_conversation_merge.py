@@ -154,9 +154,10 @@ def test_merge_material_placeholders_with_specific_items():
     merged = merge_invoice_data(existing, new)
 
     assert not any(i.description == "Materialkosten" for i in merged.items)
-    assert any(
+    condition = (
         i.description == "Fenster" and i.unit_price == 300.0 for i in merged.items
     )
+    assert any(condition)
 
 
 def test_merge_adds_customer_address_when_missing():
