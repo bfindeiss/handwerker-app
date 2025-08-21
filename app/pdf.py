@@ -2,12 +2,15 @@
 
 from pathlib import Path
 from typing import Iterable
+from io import BytesIO
 
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from app.models import InvoiceContext
 from app.invoice_template import format_invoice_lines
+from app.settings import settings
 
 
 def _write_lines(c: canvas.Canvas, lines: Iterable[str]) -> None:
@@ -23,17 +26,41 @@ def _write_lines(c: canvas.Canvas, lines: Iterable[str]) -> None:
 def generate_invoice_pdf(invoice: InvoiceContext, file_path: Path) -> None:
     """Erstellt eine einfache PDF-Datei mit Rechnungsdaten.
 
-    Die erzeugte PDF enthält grundlegende Angaben zur Rechnung und kann als
-    Ausgangspunkt für eine EN‑16931‑konforme E‑Rechnung dienen.
+    Nutzt optional eine bestehende PDF-Vorlage als Hintergrund. Ist keine
+    Vorlage hinterlegt, wird ein schlichtes Layout erzeugt.
     """
-
-    c = canvas.Canvas(str(file_path), pagesize=A4)
-    c.setTitle("Rechnung")
-    c.setAuthor("Handwerker App")
-    c.setSubject("E-Rechnung")
 
     lines = format_invoice_lines(invoice)
 
-    _write_lines(c, lines)
-    c.showPage()
-    c.save()
+    if settings.invoice_template_pdf:
+        # Overlay mit Rechnungsdaten erzeugen
+        packet = BytesIO()
+        c = canvas.Canvas(packet, pagesize=A4)
+        _write_lines(c, lines)
+        c.save()
+        packet.seek(0)
+
+        overlay = PdfReader(packet)
+        template = PdfReader(settings.invoice_template_pdf)
+        page = template.pages[0]
+        page.merge_page(overlay.pages[0])
+
+        writer = PdfWriter()
+        writer.add_page(page)
+        writer.add_metadata(
+            {
+                "/Title": "Rechnung",
+                "/Author": "Handwerker App",
+                "/Subject": "E-Rechnung",
+            }
+        )
+        with open(file_path, "wb") as f:
+            writer.write(f)
+    else:
+        c = canvas.Canvas(str(file_path), pagesize=A4)
+        c.setTitle("Rechnung")
+        c.setAuthor("Handwerker App")
+        c.setSubject("E-Rechnung")
+        _write_lines(c, lines)
+        c.showPage()
+        c.save()

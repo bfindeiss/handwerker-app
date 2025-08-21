@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     payment_iban: str = "DE12 3456 7890 1234 5678 90"
     payment_bic: str = "ABCDDEFFXXX"
 
+    # Optionale PDF-Vorlage für Rechnungen
+    invoice_template_pdf: str | None = None
+
     # Verhalten beim Start, falls das LLM nicht erreichbar ist
     fail_on_llm_unavailable: bool = False
 

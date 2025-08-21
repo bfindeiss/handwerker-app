@@ -8,6 +8,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 
 - [Codeübersicht](#codeübersicht)
 - [Installation und Start](#installation-und-start)
+- [Rechnungsvorlage (PDF)](#rechnungsvorlage-pdf)
 - [Telefonie konfigurieren](#telefonie-konfigurieren)
 - [Audioverarbeitung & Weboberfläche](#audioverarbeitung--weboberfläche)
 - [Dialogbasierte Konversation](#dialogbasierte-konversation)
@@ -81,6 +82,16 @@ uvicorn app.main:app --reload
 ```
 
 `STT_PROMPT` in der `.env` erlaubt es, branchenspezifische Begriffe oder Namen für die Spracherkennung vorzugeben.
+
+## Rechnungsvorlage (PDF)
+
+Eine benutzerdefinierte PDF-Vorlage kann als Hintergrund für Rechnungen dienen. Lege die Datei in ein beschreibbares Verzeichnis (z. B. Upload-Ordner oder Volume) und setze in `.env` oder den Deployment-Settings den Pfad:
+
+```bash
+INVOICE_TEMPLATE_PDF=/pfad/zur/vorlage.pdf
+```
+
+Die Vorlage muss im A4-Format vorliegen. Die Rechnungstexte werden 50 pt vom oberen Rand begonnen und im Abstand von 20 pt geschrieben – die Vorlage sollte entsprechende Freiflächen bereithalten. Zum Austausch der Vorlage genügt es, die Datei zu ersetzen oder den Pfad anzupassen.
 
 ## Telefonie konfigurieren
 
