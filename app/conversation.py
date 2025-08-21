@@ -149,6 +149,8 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
         "Unbekannter Kunde",
     ) and new.customer.get("name"):
         merged.customer["name"] = new.customer["name"]
+    if not merged.customer.get("address") and new.customer.get("address"):
+        merged.customer["address"] = new.customer["address"]
     if merged.service.get("description") in (
         None,
         "",
