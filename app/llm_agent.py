@@ -105,7 +105,7 @@ def _build_prompt(transcript: str) -> str:
         "eine strukturierte JSON-Rechnung gemäß folgendem Schema:\n\n"
         "{\n"
         '  "type": "InvoiceContext",\n'
-        '  "customer": { "name": str },\n'
+        '  "customer": { "name": str, "address": str },\n'
         '  "service": { "description": str, "materialIncluded": bool },\n'
         '  "items": [\n'
         '    { "description": str, "category": '

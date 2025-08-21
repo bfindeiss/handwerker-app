@@ -45,3 +45,23 @@ def test_format_invoice_contains_required_sections(monkeypatch):
     assert "Zahlungsinformationen" in text
     assert "Name/Firma: Test GmbH" in text
     assert "BIC TESTDEFFXXX" in text
+
+
+def test_format_invoice_includes_travel_item(monkeypatch):
+    invoice = _sample_invoice()
+    invoice.add_item(
+        InvoiceItem(
+            description="Anfahrt",
+            category="travel",
+            quantity=15.0,
+            unit="km",
+            unit_price=1.0,
+        )
+    )
+    monkeypatch.setattr(settings, "supplier_name", "Test GmbH")
+    monkeypatch.setattr(settings, "payment_iban", "DE00 0000 0000 0000 0000 00")
+    monkeypatch.setattr(settings, "payment_bic", "TESTDEFFXXX")
+    lines = format_invoice_lines(invoice)
+    travel_lines = [line for line in lines if "Anfahrt" in line]
+    assert travel_lines, "travel item missing"
+    assert "15.0 km" in travel_lines[0]

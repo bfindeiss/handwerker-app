@@ -71,6 +71,25 @@ def test_merge_invoice_preserves_existing_values_and_adds_new_items():
     assert travel_item.quantity == 15.0
 
 
+def test_merge_invoice_ignores_placeholder_customer_name():
+    existing = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": "Unbekannter Kunde"},
+        service={"description": "Fenster einsetzen"},
+        items=[],
+        amount={},
+    )
+    new = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": "John Doe"},
+        service={},
+        items=[],
+        amount={},
+    )
+
+    merged = merge_invoice_data(existing, new)
+    assert merged.customer["name"] == "Unbekannter Kunde"
+
 def test_merge_removes_labor_placeholder_for_specific_item():
     existing = _invoice_with_items(
         [
@@ -139,3 +158,22 @@ def test_merge_material_placeholders_with_specific_items():
         i.description == "Fenster" and i.unit_price == 300.0 for i in merged.items
     )
     assert any(condition)
+
+
+def test_merge_adds_customer_address_when_missing():
+    existing = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": "Kunde"},
+        service={"description": "Fenster einsetzen"},
+        items=[],
+        amount={},
+    )
+    new = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": "Kunde", "address": "Rathausstr. 11"},
+        service={"description": "Fenster einsetzen"},
+        items=[],
+        amount={},
+    )
+    merged = merge_invoice_data(existing, new)
+    assert merged.customer.get("address") == "Rathausstr. 11"
