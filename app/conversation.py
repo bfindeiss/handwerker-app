@@ -253,6 +253,15 @@ def _handle_conversation(
         m["content"] for m in session_msgs if m["role"] == "user"
     )
 
+    distance = 0.0
+    m_distance = re.search(
+        r"(\d+(?:[.,]\d+)?)\s*(?:km|kilometer)",
+        full_transcript,
+        re.IGNORECASE,
+    )
+    if m_distance:
+        distance = float(m_distance.group(1).replace(",", "."))
+
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     had_state = session_id in INVOICE_STATE
     invoice_json = extract_invoice_context(full_transcript)
@@ -273,15 +282,6 @@ def _handle_conversation(
         if had_state:
             invoice = INVOICE_STATE[session_id]
         else:
-            distance = 0.0
-            m_distance = re.search(
-                r"(\d+(?:[.,]\d+)?)\s*(?:km|kilometer)",
-                full_transcript,
-                re.IGNORECASE,
-            )
-            if m_distance:
-                distance = float(m_distance.group(1).replace(",", "."))
-
             invoice = InvoiceContext(
                 type="InvoiceContext",
                 customer={"name": "Unbekannter Kunde"},
@@ -312,11 +312,23 @@ def _handle_conversation(
                 ],
                 amount={},
             )
-            apply_pricing(invoice)
-            INVOICE_STATE[session_id] = invoice
             placeholder_notice = True
 
     # Platzhalter und geschätzte Arbeitszeit ergänzen.
+    travel_item = next((i for i in invoice.items if i.category == "travel"), None)
+    if not travel_item:
+        invoice.items.append(
+            InvoiceItem(
+                description="Anfahrt",
+                category="travel",
+                quantity=distance,
+                unit="km",
+                unit_price=0.0,
+            )
+        )
+    elif distance:
+        travel_item.quantity = distance
+
     fill_default_fields(invoice)
     if not any(item.category == "labor" for item in invoice.items):
         invoice.add_item(
