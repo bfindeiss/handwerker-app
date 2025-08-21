@@ -3,7 +3,7 @@ from twilio.twiml.voice_response import VoiceResponse
 
 from app.llm_agent import extract_invoice_context
 from app.models import missing_invoice_fields, parse_invoice_context
-from app.transcriber import transcribe_audio
+from app.stt import transcribe_audio
 
 from .common import download_recording, finalize
 

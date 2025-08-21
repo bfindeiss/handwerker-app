@@ -20,7 +20,7 @@ from app.persistence import store_interaction
 from app.settings import settings
 from app.telephony import router as telephony_router
 from app.conversation import router as conversation_router
-from app.transcriber import transcribe_audio
+from app.stt import transcribe_audio
 from app.logging_config import configure_logging
 from app.request_id import request_id_ctx_var
 
