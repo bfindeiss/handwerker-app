@@ -103,6 +103,8 @@ def _build_prompt(transcript: str) -> str:
     prompt = (
         "Du bist ein KI-Assistent für Handwerker. Extrahiere aus folgendem Text "
         "eine strukturierte JSON-Rechnung gemäß folgendem Schema:\n\n"
+        "Führe jede im Text erwähnte Material- bzw. Arbeitsposition mit Menge, "
+        "Einheit, Preis und ``worker_role`` auf.\n\n"
         "{\n"
         '  "type": "InvoiceContext",\n'
         '  "customer": { "name": str, "address": str },\n'
