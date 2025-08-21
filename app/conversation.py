@@ -164,7 +164,6 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
                 if not existing_item.unit and item.unit:
                     existing_item.unit = item.unit
         else:
-            merged.add_item(item)
             merged.items.append(item)
             item_map[key] = item
 
@@ -236,11 +235,15 @@ def _handle_conversation(
         else:
             message = f"Position {idx} nicht gefunden."
         audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+        if invoice and not _user_set_customer_name(invoice.customer.get("name"), transcript_part):
+            invoice.customer.pop("name", None)
+            fill_default_fields(invoice)
         return {
             "done": False,
             "message": message,
             "audio": audio_b64,
             "transcript": SESSIONS.get(session_id, ""),
+            "invoice": invoice.model_dump(mode="json") if invoice else None,
         }
 
     # Neues Transkript zur Session hinzufügen.

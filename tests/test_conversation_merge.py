@@ -176,4 +176,3 @@ def test_merge_adds_customer_address_when_missing():
     )
     merged = merge_invoice_data(existing, new)
     assert merged.customer.get("address") == "Rathausstr. 11"
-    )
