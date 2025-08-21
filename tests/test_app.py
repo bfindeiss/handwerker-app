@@ -11,7 +11,7 @@ import pytest
 import httpx
 
 from app.main import app
-from app import transcriber, llm_agent, billing_adapter, persistence, tts, telephony
+from app import stt, llm_agent, billing_adapter, persistence, tts, telephony
 import app.telephony.twilio as telephony_twilio
 import app.telephony.common as telephony_common
 from app import settings as app_settings
@@ -81,18 +81,18 @@ class DummyOpenAI:
 
 def test_transcribe_audio(monkeypatch):
     """Transcribes audio using OpenAI STT"""
-    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
-    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
-    monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAI("hallo"))
-    result = transcriber.transcribe_audio(b"audio")
+    monkeypatch.setattr(stt.settings, "stt_provider", "openai")
+    monkeypatch.setattr(stt.settings, "stt_model", "whisper-1")
+    monkeypatch.setattr(stt, "OpenAI", lambda: DummyOpenAI("hallo"))
+    result = stt.transcribe_audio(b"audio")
     assert result == "hallo"
 
 
 def test_transcribe_audio_prompt(monkeypatch):
     """Forwards prompt to OpenAI STT"""
-    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
-    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
-    monkeypatch.setattr(transcriber.settings, "stt_prompt", "Baustelle")
+    monkeypatch.setattr(stt.settings, "stt_provider", "openai")
+    monkeypatch.setattr(stt.settings, "stt_model", "whisper-1")
+    monkeypatch.setattr(stt.settings, "stt_prompt", "Baustelle")
 
     captured: dict[str, object] = {}
 
@@ -117,38 +117,38 @@ def test_transcribe_audio_prompt(monkeypatch):
         def audio(self):
             return DummyOpenAIWithPrompt.Audio(self)
 
-    monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAIWithPrompt())
-    transcriber.transcribe_audio(b"audio")
+    monkeypatch.setattr(stt, "OpenAI", lambda: DummyOpenAIWithPrompt())
+    stt.transcribe_audio(b"audio")
     assert captured["prompt"] == "Baustelle"
 
 
 def test_transcribe_audio_normalized(monkeypatch):
     """Normalisiert häufige Erkennungsfehler im Transkript."""
-    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
-    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
+    monkeypatch.setattr(stt.settings, "stt_provider", "openai")
+    monkeypatch.setattr(stt.settings, "stt_model", "whisper-1")
     monkeypatch.setattr(
-        transcriber, "OpenAI", lambda: DummyOpenAI("eine Geseldenstunde")
+        stt, "OpenAI", lambda: DummyOpenAI("eine Geseldenstunde")
     )
-    result = transcriber.transcribe_audio(b"audio")
+    result = stt.transcribe_audio(b"audio")
     assert result == "1 Gesellenstunde"
 
 
 def test_transcribe_audio_number_words(monkeypatch):
     """Wandelt ausgeschriebene Zahlen in Ziffern um."""
-    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
-    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
+    monkeypatch.setattr(stt.settings, "stt_provider", "openai")
+    monkeypatch.setattr(stt.settings, "stt_model", "whisper-1")
     monkeypatch.setattr(
-        transcriber, "OpenAI", lambda: DummyOpenAI("eine Stunde und zwei Kilometer")
+        stt, "OpenAI", lambda: DummyOpenAI("eine Stunde und zwei Kilometer")
     )
-    result = transcriber.transcribe_audio(b"audio")
+    result = stt.transcribe_audio(b"audio")
     assert result == "1 Stunde und 2 Kilometer"
 
 
 def test_transcribe_audio_command(monkeypatch):
     """Transcribes audio using a command line STT backend"""
-    monkeypatch.setattr(transcriber.settings, "stt_provider", "command")
-    monkeypatch.setattr(transcriber.settings, "stt_model", "dummycmd")
-    monkeypatch.setattr(transcriber.settings, "stt_language", "en")
+    monkeypatch.setattr(stt.settings, "stt_provider", "command")
+    monkeypatch.setattr(stt.settings, "stt_model", "dummycmd")
+    monkeypatch.setattr(stt.settings, "stt_language", "en")
     captured: dict[str, list[str]] = {}
 
     def fake_run(cmd, capture_output=True, text=True, check=True):
@@ -159,8 +159,8 @@ def test_transcribe_audio_command(monkeypatch):
 
         return R()
 
-    monkeypatch.setattr(transcriber.subprocess, "run", fake_run)
-    result = transcriber.transcribe_audio(b"audio")
+    monkeypatch.setattr(stt.subprocess, "run", fake_run)
+    result = stt.transcribe_audio(b"audio")
     assert result == "hi"
     assert captured["cmd"][:3] == ["dummycmd", "--language", "en"]
 
@@ -271,7 +271,7 @@ def test_store_interaction(tmp_data_dir):
 
 def test_process_audio(monkeypatch, tmp_data_dir):
     """Processes audio upload end-to-end"""
-    monkeypatch.setattr(transcriber, "transcribe_audio", lambda x: "transcript")
+    monkeypatch.setattr(stt, "transcribe_audio", lambda x: "transcript")
     monkeypatch.setattr(app_main, "transcribe_audio", lambda x: "transcript")
     dummy_json = json.dumps(
         {
@@ -317,7 +317,7 @@ def test_process_audio(monkeypatch, tmp_data_dir):
 
 def test_process_audio_m4a(monkeypatch, tmp_data_dir):
     """Processes m4a uploads by converting to wav."""
-    monkeypatch.setattr(transcriber, "transcribe_audio", lambda x: "transcript")
+    monkeypatch.setattr(stt, "transcribe_audio", lambda x: "transcript")
     monkeypatch.setattr(app_main, "transcribe_audio", lambda x: "transcript")
     dummy_json = json.dumps(
         {
@@ -362,7 +362,7 @@ def test_process_audio_m4a(monkeypatch, tmp_data_dir):
 
 def test_process_audio_invalid_invoice(monkeypatch):
     """Returns error when LLM response is empty."""
-    monkeypatch.setattr(transcriber, "transcribe_audio", lambda x: "t")
+    monkeypatch.setattr(stt, "transcribe_audio", lambda x: "t")
     monkeypatch.setattr(app_main, "transcribe_audio", lambda x: "t")
     monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: "")
     monkeypatch.setattr(app_main, "extract_invoice_context", lambda t: "")
@@ -432,7 +432,7 @@ def test_twilio_recording_followup(monkeypatch, tmp_data_dir):
     monkeypatch.setattr(telephony_twilio, "download_recording", fake_download)
 
     transcripts = iter(["", "Hans Malen 100"])
-    monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: next(transcripts))
+    monkeypatch.setattr(stt, "transcribe_audio", lambda b: next(transcripts))
     monkeypatch.setattr(
         telephony_twilio, "transcribe_audio", lambda b: next(transcripts)
     )
@@ -508,7 +508,7 @@ def test_sipgate_recording(monkeypatch, tmp_data_dir):
 
     monkeypatch.setattr(telephony_mod, "download_recording", fake_download)
     monkeypatch.setattr(telephony_sipgate, "download_recording", fake_download)
-    monkeypatch.setattr(transcriber, "transcribe_audio", lambda b: "transcript")
+    monkeypatch.setattr(stt, "transcribe_audio", lambda b: "transcript")
     monkeypatch.setattr(telephony_sipgate, "transcribe_audio", lambda b: "transcript")
     dummy_json = json.dumps(
         {

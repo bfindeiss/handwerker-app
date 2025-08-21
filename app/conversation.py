@@ -20,7 +20,7 @@ from app.models import (
 from app.persistence import store_interaction
 from app.pricing import apply_pricing
 from app.service_estimations import estimate_labor_item
-from app.transcriber import transcribe_audio
+from app.stt import transcribe_audio
 from app.tts import text_to_speech
 
 router = APIRouter()

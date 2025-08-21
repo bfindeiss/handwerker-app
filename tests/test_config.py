@@ -46,11 +46,11 @@ def test_invalid_billing_adapter(monkeypatch):
 
 def test_invalid_stt_provider(monkeypatch):
     """Rejects invalid STT provider configuration"""
-    from app import transcriber
+    from app import stt
     monkeypatch.setattr(app_settings.settings, "stt_provider", "foo")
-    importlib.reload(transcriber)
+    importlib.reload(stt)
     with pytest.raises(ValueError):
-        transcriber._select_provider()
+        stt._select_provider()
 
 
 def test_invalid_llm_provider(monkeypatch):
@@ -123,11 +123,11 @@ def test_whisper_requires_ffmpeg(monkeypatch):
     """Raises an error if ffmpeg is not installed for Whisper."""
     import importlib
     import shutil
-    from app import transcriber
+    from app import stt
 
     monkeypatch.setattr(app_settings.settings, "stt_provider", "whisper")
     monkeypatch.setattr(shutil, "which", lambda name: None)
     with pytest.raises(RuntimeError):
-        importlib.reload(transcriber)
-        transcriber._select_provider()
+        importlib.reload(stt)
+        stt._select_provider()
 

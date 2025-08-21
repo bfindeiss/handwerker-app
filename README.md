@@ -20,7 +20,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [Deployment auf Render](#deployment-auf-render)
 - [iPhone: Lokaler Test mit Pyto (experimentell)](#iphone-lokaler-test-mit-pyto-experimentell)
 - [Fehlerbehebung](#fehlerbehebung)
-  - ["WhisperTranscriber requires ffmpeg"](#whispertranscriber-requires-ffmpeg)
+  - ["Whisper STT requires ffmpeg"](#whisper-stt-requires-ffmpeg)
   - ["Numpy is not available"](#numpy-is-not-available)
   - ["A module that was compiled using NumPy 1.x cannot be run"](#a-module-that-was-compiled-using-numpy-1x-cannot-be-run)
 
@@ -34,7 +34,7 @@ Die wichtigsten Module sind über die `app/`-Struktur verteilt:
   die Struktur einer Rechnung vorgibt.
 - [`app/llm_agent.py`](app/llm_agent.py) – kapselt den Zugriff auf
   unterschiedliche LLMs und baut die Prompts.
-- [`app/transcriber.py`](app/transcriber.py) – abstrahiert verschiedene
+- [`app/stt/`](app/stt) – abstrahiert verschiedene
   Speech‑to‑Text‑Backends.
 - [`app/billing_adapter.py`](app/billing_adapter.py) samt
   Unterordner `billing_adapters/` – Schnittstellen zu externen
@@ -267,7 +267,7 @@ Aufgrund fehlender Ollama-Unterstützung nutzt diese Variante den OpenAI-Provide
 
 ## Fehlerbehebung
 
-### "WhisperTranscriber requires ffmpeg"
+### "Whisper STT requires ffmpeg"
 
 Beim lokalen Whisper-Modell (`STT_PROVIDER=whisper`) muss das Programm `ffmpeg` installiert und im `PATH` verfügbar sein. Installiere es bei Bedarf über `brew install ffmpeg` (macOS) oder `sudo apt install ffmpeg` (Ubuntu). Alternativ kann `STT_PROVIDER=openai` gesetzt werden, um den Cloud-Dienst ohne lokales `ffmpeg` zu nutzen.
 

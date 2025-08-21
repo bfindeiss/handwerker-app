@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import transcriber, llm_agent
+from app import stt, llm_agent
 from app import settings as app_settings
 
 
@@ -70,9 +70,9 @@ class DummyOpenAI:
 
 def test_end_to_end(monkeypatch, tmp_data_dir):
     """Full pipeline via /process-audio/ endpoint."""
-    monkeypatch.setattr(transcriber.settings, "stt_provider", "openai")
-    monkeypatch.setattr(transcriber.settings, "stt_model", "whisper-1")
-    monkeypatch.setattr(transcriber, "OpenAI", lambda: DummyOpenAI("transcript"))
+    monkeypatch.setattr(stt.settings, "stt_provider", "openai")
+    monkeypatch.setattr(stt.settings, "stt_model", "whisper-1")
+    monkeypatch.setattr(stt, "OpenAI", lambda: DummyOpenAI("transcript"))
 
     dummy_json = json.dumps(
         {
