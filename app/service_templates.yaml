@@ -17,7 +17,7 @@ dusche_einbauen:
     quantity: 1
     unit_price: 120
   - description: "Anfahrtspauschale"
-    category: "service"
+    category: "travel"
     unit: "Pauschale"
     quantity: 1
     unit_price: 50
@@ -41,6 +41,29 @@ fenster_setzen:
     unit_price: 40
   - description: "Anfahrtspauschale"
     category: "service"
+    unit: "Pauschale"
+    quantity: 1
+    unit_price: 50
+
+tuer_setzen:
+  - description: "Arbeitszeit Schreiner"
+    category: "labor"
+    unit: "h"
+    quantity: 4
+    unit_price: 50
+    worker_role: "Schreiner"
+  - description: "Innentür mit Zarge"
+    category: "material"
+    unit: "Stk"
+    quantity: 1
+    unit_price: 150
+  - description: "Montagematerial"
+    category: "material"
+    unit: "Paket"
+    quantity: 1
+    unit_price: 30
+  - description: "Anfahrtspauschale"
+    category: "travel"
     unit: "Pauschale"
     quantity: 1
     unit_price: 50

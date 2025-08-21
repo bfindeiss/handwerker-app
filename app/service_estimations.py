@@ -38,6 +38,7 @@ def estimate_invoice_items(service_description: str) -> list[InvoiceItem]:
         "dusche": "dusche_einbauen",
         "duschkabine": "dusche_einbauen",
         "fenster": "fenster_setzen",
+        "tür": "tuer_setzen",
         "laminat": "laminat_verlegen",
         "steckdose": "steckdose_installieren",
         "malen": "waende_streichen",
