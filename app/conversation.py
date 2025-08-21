@@ -149,7 +149,7 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
 
         existing_item = item_map.get(key)
         if existing_item:
-            if service_placeholder:
+            if service_placeholder or not existing_item.unit_price:
                 if item.quantity:
                     existing_item.quantity = item.quantity
                 if item.unit_price:
