@@ -10,3 +10,8 @@ def test_build_prompt_preserves_quotes():
     # Ensure there are no extraneous surrounding quotes around transcript
     # preceding and following context should match expected format
     assert re.search(r"Text:\nEr sagte \"Hallo\" und \"Tschüss\"\n", prompt)
+
+
+def test_build_prompt_requests_address_field():
+    prompt = _build_prompt("Test")
+    assert '"address": str' in prompt
