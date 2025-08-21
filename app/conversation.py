@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from fastapi import APIRouter, File, Form, UploadFile
 
@@ -26,12 +26,36 @@ from app.tts import text_to_speech
 router = APIRouter()
 
 # Zwischenspeicher für laufende Konversationen
-SESSIONS: Dict[str, str] = {}
+SESSIONS: Dict[str, List[Dict[str, str]]] = {}
 # Zuletzt erfolgreicher Rechnungszustand pro Session
 INVOICE_STATE: Dict[str, InvoiceContext] = {}
 
 # Pfad zur Konfigurationsdatei
 ENV_PATH = Path(".env")
+
+# Platzhalter, die von LLMs häufig für Kundennamen verwendet werden
+_CUSTOMER_NAME_PLACEHOLDERS = {
+    "john doe",
+    "jane doe",
+    "max mustermann",
+    "erika mustermann",
+}
+
+
+def _user_set_customer_name(name: str | None, transcript: str | None = None) -> bool:
+    """Prüft, ob ein Kundenname vom Nutzer stammt."""
+
+    if not name:
+        return False
+
+    lowered = name.strip().casefold()
+    if lowered in _CUSTOMER_NAME_PLACEHOLDERS:
+        return False
+
+    if transcript is not None and lowered not in transcript.casefold():
+        return False
+
+    return True
 
 
 def _save_env_value(key: str, value: str) -> None:
@@ -144,12 +168,14 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
             merged.items.append(item)
             item_map[key] = item
 
-    if merged.customer.get("name") in (
-        None,
-        "",
-        "Unbekannter Kunde",
-    ) and new.customer.get("name"):
+    if (
+        merged.customer.get("name") in (None, "", "Unbekannter Kunde")
+        and _user_set_customer_name(new.customer.get("name"))
+    ):
+
         merged.customer["name"] = new.customer["name"]
+    if not merged.customer.get("address") and new.customer.get("address"):
+        merged.customer["address"] = new.customer["address"]
     if merged.service.get("description") in (
         None,
         "",
@@ -192,7 +218,9 @@ def _handle_conversation(
             "done": False,
             "message": message,
             "audio": audio_b64,
-            "transcript": SESSIONS.get(session_id, ""),
+            "transcript": " ".join(
+                m["content"] for m in SESSIONS.get(session_id, [])
+            ),
         }
 
     # Prüft auf Befehle wie "Position X löschen".
@@ -216,8 +244,11 @@ def _handle_conversation(
         }
 
     # Neues Transkript zur Session hinzufügen.
-    full_transcript = (SESSIONS.get(session_id, "") + " " + transcript_part).strip()
-    SESSIONS[session_id] = full_transcript
+    session_msgs = SESSIONS.setdefault(session_id, [])
+    session_msgs.append({"role": "user", "content": transcript_part})
+    full_transcript = " ".join(
+        m["content"] for m in session_msgs if m["role"] == "user"
+    )
 
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     had_state = session_id in INVOICE_STATE
@@ -226,6 +257,10 @@ def _handle_conversation(
     placeholder_notice = False
     try:
         parsed = parse_invoice_context(invoice_json)
+        if not _user_set_customer_name(
+            parsed.customer.get("name"), full_transcript
+        ):
+            parsed.customer.pop("name", None)
         if had_state:
             invoice = merge_invoice_data(INVOICE_STATE[session_id], parsed)
         else:
@@ -294,15 +329,15 @@ def _handle_conversation(
     if set(missing).issubset({"customer.name", "service.description"}):
         missing = []
 
-    log_dir = store_interaction(audio_bytes, full_transcript, invoice)
-    pdf_path = str(Path(log_dir) / "invoice.pdf")
-    pdf_url = "/" + pdf_path.replace("\\", "/")
-
     if parse_error and had_state:
         if "stund" in invoice_json.lower():
             question = "Wie viele Stunden wurden abgerechnet?"
         else:
             question = "Welche Positionen wurden abgerechnet?"
+        session_msgs.append({"role": "assistant", "content": question})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -324,6 +359,10 @@ def _handle_conversation(
         }
         question_lines = [question_map.get(f, f) for f in missing]
         question = "\n".join(question_lines)
+        session_msgs.append({"role": "assistant", "content": question})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -344,6 +383,10 @@ def _handle_conversation(
     )
     if placeholder_notice:
         message = "Hinweis: Platzhalter verwendet. " + message
+    session_msgs.append({"role": "assistant", "content": message})
+    log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+    pdf_path = str(Path(log_dir) / "invoice.pdf")
+    pdf_url = "/" + pdf_path.replace("\\", "/")
     audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
     return {
         "done": True,
