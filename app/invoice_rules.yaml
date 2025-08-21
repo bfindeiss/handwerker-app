@@ -1,0 +1,6 @@
+allowed_units:
+  - h
+  - stk
+price_limits:
+  labor: 100
+  material: 1000
