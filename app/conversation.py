@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from fastapi import APIRouter, File, Form, UploadFile
 
@@ -26,7 +26,7 @@ from app.tts import text_to_speech
 router = APIRouter()
 
 # Zwischenspeicher für laufende Konversationen
-SESSIONS: Dict[str, str] = {}
+SESSIONS: Dict[str, List[Dict[str, str]]] = {}
 # Zuletzt erfolgreicher Rechnungszustand pro Session
 INVOICE_STATE: Dict[str, InvoiceContext] = {}
 
@@ -90,17 +90,63 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
 
     merged = existing.model_copy(deep=True)
 
-    item_map = {
-        (i.category, i.description, i.worker_role): i for i in merged.items
-    }
+    item_map = {(i.category, i.description, i.worker_role): i for i in merged.items}
 
-    service_placeholder = (
-        merged.service.get("description")
-        in (None, "", "Dienstleistung nicht näher beschrieben")
+    def _is_generic_material(desc: str) -> bool:
+        return desc.lower() in {"material", "materialkosten"}
+
+    def _is_placeholder_labor(it: InvoiceItem) -> bool:
+        return (
+            it.category == "labor"
+            and it.description.lower().startswith("arbeitszeit")
+            and not it.unit_price
+        )
+
+    service_placeholder = merged.service.get("description") in (
+        None,
+        "",
+        "Dienstleistung nicht näher beschrieben",
     )
 
     for item in new.items:
         key = (item.category, item.description, item.worker_role)
+
+        if item.category == "labor":
+            placeholders = [
+                ex
+                for ex in merged.items
+                if _is_placeholder_labor(ex)
+                and ex.worker_role == item.worker_role
+                and ex.description != item.description
+            ]
+            for ph in placeholders:
+                merged.items.remove(ph)
+                item_map.pop((ph.category, ph.description, ph.worker_role), None)
+
+        if item.category == "material":
+            placeholders = [
+                ex
+                for ex in merged.items
+                if ex.category == "material" and _is_generic_material(ex.description)
+            ]
+            for ph in placeholders:
+                merged.items.remove(ph)
+                item_map.pop((ph.category, ph.description, ph.worker_role), None)
+
+            if _is_generic_material(item.description):
+                existing_specific = [
+                    ex for ex in merged.items if ex.category == "material"
+                ]
+                if existing_specific:
+                    target = existing_specific[0]
+                    if not target.quantity and item.quantity:
+                        target.quantity = item.quantity
+                    if not target.unit_price and item.unit_price:
+                        target.unit_price = item.unit_price
+                    if not target.unit and item.unit:
+                        target.unit = item.unit
+                    continue
+
         existing_item = item_map.get(key)
         if existing_item:
             if service_placeholder:
@@ -119,17 +165,19 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
                     existing_item.unit = item.unit
         else:
             merged.items.append(item)
+            item_map[key] = item
 
     if (
         merged.customer.get("name") in (None, "", "Unbekannter Kunde")
         and _user_set_customer_name(new.customer.get("name"))
     ):
+
         merged.customer["name"] = new.customer["name"]
-    if (
-        merged.service.get("description")
-        in (None, "", "Dienstleistung nicht näher beschrieben")
-        and new.service.get("description")
-    ):
+    if merged.service.get("description") in (
+        None,
+        "",
+        "Dienstleistung nicht näher beschrieben",
+    ) and new.service.get("description"):
         merged.service["description"] = new.service["description"]
 
     return merged
@@ -167,12 +215,37 @@ def _handle_conversation(
             "done": False,
             "message": message,
             "audio": audio_b64,
+            "transcript": " ".join(
+                m["content"] for m in SESSIONS.get(session_id, [])
+            ),
+        }
+
+    # Prüft auf Befehle wie "Position X löschen".
+    m = re.search(r"position\s+(\d+)\s+löschen", transcript_part, re.IGNORECASE)
+    if m:
+        idx = int(m.group(1))
+        invoice = INVOICE_STATE.get(session_id)
+        if invoice and 1 <= idx <= len(invoice.items):
+            del invoice.items[idx - 1]
+            apply_pricing(invoice)
+            INVOICE_STATE[session_id] = invoice
+            message = f"Position {idx} gelöscht."
+        else:
+            message = f"Position {idx} nicht gefunden."
+        audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+        return {
+            "done": False,
+            "message": message,
+            "audio": audio_b64,
             "transcript": SESSIONS.get(session_id, ""),
         }
 
     # Neues Transkript zur Session hinzufügen.
-    full_transcript = (SESSIONS.get(session_id, "") + " " + transcript_part).strip()
-    SESSIONS[session_id] = full_transcript
+    session_msgs = SESSIONS.setdefault(session_id, [])
+    session_msgs.append({"role": "user", "content": transcript_part})
+    full_transcript = " ".join(
+        m["content"] for m in session_msgs if m["role"] == "user"
+    )
 
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     had_state = session_id in INVOICE_STATE
@@ -194,6 +267,15 @@ def _handle_conversation(
         if had_state:
             invoice = INVOICE_STATE[session_id]
         else:
+            distance = 0.0
+            m_distance = re.search(
+                r"(\d+(?:[.,]\d+)?)\s*(?:km|kilometer)",
+                full_transcript,
+                re.IGNORECASE,
+            )
+            if m_distance:
+                distance = float(m_distance.group(1).replace(",", "."))
+
             invoice = InvoiceContext(
                 type="InvoiceContext",
                 customer={"name": "Unbekannter Kunde"},
@@ -206,7 +288,21 @@ def _handle_conversation(
                         unit="h",
                         unit_price=0.0,
                         worker_role="Geselle",
-                    )
+                    ),
+                    InvoiceItem(
+                        description="Material",
+                        category="material",
+                        quantity=0.0,
+                        unit="stk",
+                        unit_price=0.0,
+                    ),
+                    InvoiceItem(
+                        description="Anfahrt",
+                        category="travel",
+                        quantity=distance,
+                        unit="km",
+                        unit_price=0.0,
+                    ),
                 ],
                 amount={},
             )
@@ -230,15 +326,15 @@ def _handle_conversation(
     if set(missing).issubset({"customer.name", "service.description"}):
         missing = []
 
-    log_dir = store_interaction(audio_bytes, full_transcript, invoice)
-    pdf_path = str(Path(log_dir) / "invoice.pdf")
-    pdf_url = "/" + pdf_path.replace("\\", "/")
-
     if parse_error and had_state:
         if "stund" in invoice_json.lower():
             question = "Wie viele Stunden wurden abgerechnet?"
         else:
             question = "Welche Positionen wurden abgerechnet?"
+        session_msgs.append({"role": "assistant", "content": question})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -260,6 +356,10 @@ def _handle_conversation(
         }
         question_lines = [question_map.get(f, f) for f in missing]
         question = "\n".join(question_lines)
+        session_msgs.append({"role": "assistant", "content": question})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
         return {
             "done": False,
@@ -280,6 +380,10 @@ def _handle_conversation(
     )
     if placeholder_notice:
         message = "Hinweis: Platzhalter verwendet. " + message
+    session_msgs.append({"role": "assistant", "content": message})
+    log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+    pdf_path = str(Path(log_dir) / "invoice.pdf")
+    pdf_url = "/" + pdf_path.replace("\\", "/")
     audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
     return {
         "done": True,

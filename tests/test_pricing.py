@@ -101,3 +101,20 @@ def test_material_lookup_and_vat():
 
     assert invoice.items[0].unit_price == 0.10
     assert invoice.amount["tax"] == pytest.approx(invoice.amount["net"] * settings.vat_rate)
+
+
+def test_apply_pricing_material_placeholder_uses_defaults():
+    invoice = _base_invoice([
+        InvoiceItem(
+            description="Material",
+            category="material",
+            quantity=0,
+            unit="stk",
+            unit_price=0,
+        ),
+    ])
+
+    apply_pricing(invoice)
+
+    expected = settings.material_rate_default or 0
+    assert invoice.items[0].unit_price == expected
