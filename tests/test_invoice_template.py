@@ -1,7 +1,8 @@
 from datetime import date
+import json
 
 from app.invoice_template import format_invoice_lines
-from app.models import InvoiceContext, InvoiceItem
+from app.models import InvoiceContext, InvoiceItem, parse_invoice_context
 from app.settings import settings
 
 
@@ -65,3 +66,33 @@ def test_format_invoice_includes_travel_item(monkeypatch):
     travel_lines = [line for line in lines if "Anfahrt" in line]
     assert travel_lines, "travel item missing"
     assert "15.0 km" in travel_lines[0]
+
+
+def test_format_invoice_normalizes_customer_address(monkeypatch):
+    data = {
+        "type": "invoice",
+        "customer": {
+            "name": "Kunde AG",
+            "address": "Kundenweg 10 in 12345 Kundstadt",
+        },
+        "service": {"description": "Beratung"},
+        "items": [
+            {
+                "description": "Beratungsleistung",
+                "category": "labor",
+                "quantity": 1,
+                "unit": "h",
+                "unit_price": 100.0,
+            }
+        ],
+        "amount": {"net": 100.0, "tax": 19.0, "total": 119.0},
+    }
+    raw = json.dumps(data)
+    invoice = parse_invoice_context(raw)
+    monkeypatch.setattr(settings, "supplier_name", "Test GmbH")
+    monkeypatch.setattr(settings, "payment_iban", "DE00 0000 0000 0000 0000 00")
+    monkeypatch.setattr(settings, "payment_bic", "TESTDEFFXXX")
+    lines = format_invoice_lines(invoice)
+    text = "\n".join(lines)
+    assert "Kundenweg 10, 12345 Kundstadt" in text
+    assert "Kundenweg 10 in 12345 Kundstadt" not in text

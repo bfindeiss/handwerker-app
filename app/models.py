@@ -7,6 +7,20 @@ import json
 import re
 
 
+def normalize_address(address: str) -> str:
+    """Wandelt '<Straße> in <PLZ> <Ort>' in '<Straße>, <PLZ> <Ort>' um."""
+    match = re.match(
+        r"^(?P<street>.+?)\s+in\s+(?P<zip>\d{5})\s+(?P<city>.+)$",
+        address.strip(),
+    )
+    if match:
+        street = match.group("street").strip()
+        zip_code = match.group("zip")
+        city = match.group("city").strip()
+        return f"{street}, {zip_code} {city}"
+    return address
+
+
 class InvoiceItem(BaseModel):
     """Einzelne Rechnungsposition."""
 
@@ -79,6 +93,12 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
         data = json.loads(cleaned)
     except json.JSONDecodeError as exc:  # pragma: no cover - defensive
         raise ValueError("invalid invoice context") from exc
+
+    customer = data.get("customer")
+    if isinstance(customer, dict):
+        addr = customer.get("address")
+        if isinstance(addr, str):
+            customer["address"] = normalize_address(addr)
 
     travel_keywords = ("anfahrt", "fahrtkosten", "kilometer")
     currency_units = {"euro", "eur", "€"}
