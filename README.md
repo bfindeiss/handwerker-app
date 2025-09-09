@@ -18,6 +18,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [Code Coverage in GitHub anzeigen](#code-coverage-in-github-anzeigen)
 - [Deployment auf AWS Lambda](#deployment-auf-aws-lambda)
 - [Deployment auf Render](#deployment-auf-render)
+- [Android-App (WebView)](#android-app-webview)
 - [iPhone: Lokaler Test mit Pyto (experimentell)](#iphone-lokaler-test-mit-pyto-experimentell)
 - [Fehlerbehebung](#fehlerbehebung)
   - ["Whisper STT requires ffmpeg"](#whisper-stt-requires-ffmpeg)
@@ -258,6 +259,16 @@ Für eine kostengünstige Bereitstellung bietet [Render](https://render.com) ein
 4. Nach dem Deploy lauscht die App auf dem von Render vorgegebenen Port (`$PORT`). Der Dockerfile wurde entsprechend angepasst.
 
 Damit läuft der Sprachassistent günstig in der Cloud und kann über die öffentliche URL von Render erreicht werden.
+
+## Android-App (WebView)
+
+Für mobile Geräte steht ein einfacher Android-Client zur Verfügung, der die
+Weboberfläche der Anwendung in einem `WebView` darstellt. Der Quellcode liegt im
+Verzeichnis [`android/`](android) und kann separat mit Android Studio geöffnet
+werden. Standardmäßig lädt die App im Emulator `http://10.0.2.2:8000/web` und
+kann in [`strings.xml`](android/app/src/main/res/values/strings.xml) auf eine
+beliebige Server‑URL angepasst werden. Eine ausführliche Anleitung befindet sich
+in [docs/android-app.md](docs/android-app.md).
 
 ## iPhone: Lokaler Test mit Pyto (experimentell)
 
