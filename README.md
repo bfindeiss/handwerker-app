@@ -18,6 +18,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [Code Coverage in GitHub anzeigen](#code-coverage-in-github-anzeigen)
 - [Deployment auf AWS Lambda](#deployment-auf-aws-lambda)
 - [Deployment auf Render](#deployment-auf-render)
+- [Android-App (Sprachaufnahme)](#android-app-sprachaufnahme)
 - [iPhone: Lokaler Test mit Pyto (experimentell)](#iphone-lokaler-test-mit-pyto-experimentell)
 - [Fehlerbehebung](#fehlerbehebung)
   - ["Whisper STT requires ffmpeg"](#whisper-stt-requires-ffmpeg)
@@ -258,6 +259,18 @@ Für eine kostengünstige Bereitstellung bietet [Render](https://render.com) ein
 4. Nach dem Deploy lauscht die App auf dem von Render vorgegebenen Port (`$PORT`). Der Dockerfile wurde entsprechend angepasst.
 
 Damit läuft der Sprachassistent günstig in der Cloud und kann über die öffentliche URL von Render erreicht werden.
+
+## Android-App (Sprachaufnahme)
+
+Ein nativer Android-Client ermöglicht das direkte Aufzeichnen von Sprache und
+den Upload an das Backend der Handwerker-App. Die App sendet die Aufnahme an
+`/process-audio/`, worauf das LLM die Rechnungsdaten extrahiert und als JSON
+zurückliefert. Der Quellcode liegt im Verzeichnis [`android/`](android) und kann
+mit Android Studio geöffnet werden. Die Basis-URL des Servers wird über Product
+Flavors (`local` für `http://10.0.2.2:8000`, `remote` als Platzhalter) in
+`BuildConfig.API_BASE_URL` definiert und lässt sich im Fenster **Build Variants**
+umschalten. Eine ausführliche Anleitung findet sich in
+[docs/android-app.md](docs/android-app.md).
 
 ## iPhone: Lokaler Test mit Pyto (experimentell)
 

@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Handwerker App</string>
+    <string name="start_recording">Aufnahme starten</string>
+    <string name="stop_recording">Aufnahme stoppen</string>
+    <string name="recording">Aufnahme läuft…</string>
+    <string name="uploading">Upload…</string>
+    <string name="error_prefix">Fehler: %1$s</string>
+</resources>
