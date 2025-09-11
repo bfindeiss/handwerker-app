@@ -59,6 +59,18 @@ werden. Die wichtigsten Dateien sind:
 
 ## 4. API-Endpunkt konfigurieren
 
+
+Der Basis-URL des Backends wird über **Product Flavors** gesteuert und zur Build-Zeit in
+`BuildConfig.API_BASE_URL` geschrieben. Zwei Varianten sind vorkonfiguriert:
+
+- `local` – nutzt `http://10.0.2.2:8000` für den Emulator (weitergereicht an `/process-audio/`).
+- `remote` – verweist auf `https://example.com` und dient als Platzhalter für einen externen Server.
+
+Im Fenster **Build Variants** von Android Studio lässt sich zwischen `localDebug` und
+`remoteDebug` (bzw. Release-Pendants) umschalten. Für ein eigenes Backend einfach in
+[`android/app/build.gradle`](../android/app/build.gradle) den Wert der entsprechenden
+`buildConfigField`-Zeile anpassen.
+
 Standardmäßig nutzt die App im Emulator `http://10.0.2.2:8000` als Basis-URL. Die komplette
 Anfrage erfolgt an `<Basis-URL>/process-audio/`.
 
@@ -122,6 +134,7 @@ Fehler (z. B. fehlende Verbindung) werden ebenfalls im Textfeld ausgegeben.
 
 Der Android-Client steht unter denselben Lizenzbedingungen wie das
 übrige Projekt. Beiträge und Verbesserungen sind als Pull Request willkommen.
+
 
 2. Das Verzeichnis `android/` innerhalb des Repositorys auswählen.
 3. Beim ersten Import lädt Gradle automatisch die benötigten Plugins und

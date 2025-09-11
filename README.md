@@ -267,9 +267,11 @@ Ein nativer Android-Client ermöglicht das direkte Aufzeichnen von Sprache und
 den Upload an das Backend der Handwerker-App. Die App sendet die Aufnahme an
 `/process-audio/`, worauf das LLM die Rechnungsdaten extrahiert und als JSON
 zurückliefert. Der Quellcode liegt im Verzeichnis [`android/`](android) und kann
-mit Android Studio geöffnet werden. Die Basis-URL des Servers wird in
-[`strings.xml`](android/app/src/main/res/values/strings.xml) festgelegt. Eine
-ausführliche Anleitung findet sich in [docs/android-app.md](docs/android-app.md).
+mit Android Studio geöffnet werden. Die Basis-URL des Servers wird über Product
+Flavors (`local` für `http://10.0.2.2:8000`, `remote` als Platzhalter) in
+`BuildConfig.API_BASE_URL` definiert und lässt sich im Fenster **Build Variants**
+umschalten. Eine ausführliche Anleitung findet sich in
+[docs/android-app.md](docs/android-app.md).
 
 ## Android-App (WebView)
 

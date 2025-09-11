@@ -21,15 +21,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var recordButton: Button
     private lateinit var resultView: TextView
 
-import android.os.Bundle
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.appcompat.app.AppCompatActivity
-
-class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
         recordButton = findViewById(R.id.recordButton)
         resultView = findViewById(R.id.resultView)
 
@@ -83,6 +78,7 @@ class MainActivity : AppCompatActivity() {
             )
             .build()
         val request = Request.Builder()
+            .url(BuildConfig.API_BASE_URL + "/process-audio/")
             .url(getString(R.string.api_base_url) + "/process-audio/")
             .post(requestBody)
             .build()
