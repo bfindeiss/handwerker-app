@@ -19,6 +19,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [Deployment auf AWS Lambda](#deployment-auf-aws-lambda)
 - [Deployment auf Render](#deployment-auf-render)
 - [Android-App (Sprachaufnahme)](#android-app-sprachaufnahme)
+- [Android-App (WebView)](#android-app-webview)
 - [iPhone: Lokaler Test mit Pyto (experimentell)](#iphone-lokaler-test-mit-pyto-experimentell)
 - [Fehlerbehebung](#fehlerbehebung)
   - ["Whisper STT requires ffmpeg"](#whisper-stt-requires-ffmpeg)
@@ -271,6 +272,16 @@ Flavors (`local` für `http://10.0.2.2:8000`, `remote` als Platzhalter) in
 `BuildConfig.API_BASE_URL` definiert und lässt sich im Fenster **Build Variants**
 umschalten. Eine ausführliche Anleitung findet sich in
 [docs/android-app.md](docs/android-app.md).
+
+## Android-App (WebView)
+
+Für mobile Geräte steht ein einfacher Android-Client zur Verfügung, der die
+Weboberfläche der Anwendung in einem `WebView` darstellt. Der Quellcode liegt im
+Verzeichnis [`android/`](android) und kann separat mit Android Studio geöffnet
+werden. Standardmäßig lädt die App im Emulator `http://10.0.2.2:8000/web` und
+kann in [`strings.xml`](android/app/src/main/res/values/strings.xml) auf eine
+beliebige Server‑URL angepasst werden. Eine ausführliche Anleitung befindet sich
+in [docs/android-app.md](docs/android-app.md).
 
 ## iPhone: Lokaler Test mit Pyto (experimentell)
 

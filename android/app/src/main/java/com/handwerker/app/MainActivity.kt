@@ -79,6 +79,7 @@ class MainActivity : AppCompatActivity() {
             .build()
         val request = Request.Builder()
             .url(BuildConfig.API_BASE_URL + "/process-audio/")
+            .url(getString(R.string.api_base_url) + "/process-audio/")
             .post(requestBody)
             .build()
         client.newCall(request).enqueue(object : Callback {
