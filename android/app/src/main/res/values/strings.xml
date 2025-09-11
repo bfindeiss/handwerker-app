@@ -6,4 +6,5 @@
     <string name="recording">Aufnahme läuft…</string>
     <string name="uploading">Upload…</string>
     <string name="error_prefix">Fehler: %1$s</string>
+    <string name="web_app_url">http://10.0.2.2:8000/web</string>
 </resources>
