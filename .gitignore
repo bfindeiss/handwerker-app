@@ -9,3 +9,11 @@ data/
 .coverage
 coverage.xml
 logs/
+
+# Ignore Gradle wrapper JAR
+gradle-wrapper.jar
+
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
