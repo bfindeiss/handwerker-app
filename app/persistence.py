@@ -11,7 +11,11 @@ DATA_DIR.mkdir(exist_ok=True)
 
 
 def store_interaction(
-    audio: bytes, transcript: list[dict[str, str]] | str, invoice: InvoiceContext
+    audio: bytes | None,
+    transcript: list[dict[str, str]] | str,
+    invoice: InvoiceContext,
+    image: bytes | None = None,
+    image_filename: str | None = None,
 ) -> str:
     """Speichert alle Artefakte einer Sitzung unter ``data/<timestamp>/``."""
 
@@ -32,7 +36,11 @@ def store_interaction(
     (session_dir / "transcript.txt").write_text(text, encoding="utf-8")
 
     # Rohdaten persistieren
-    (session_dir / "audio.wav").write_bytes(audio)
+    if audio is not None:
+        (session_dir / "audio.wav").write_bytes(audio)
+    if image is not None:
+        suffix = Path(image_filename or "image").suffix or ""
+        (session_dir / f"image{suffix}").write_bytes(image)
     (session_dir / "invoice.json").write_text(
         json.dumps(invoice.model_dump(mode="json"), ensure_ascii=False, indent=2),
         encoding="utf-8",

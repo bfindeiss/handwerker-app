@@ -11,7 +11,7 @@ import pytest
 import httpx
 
 from app.main import app
-from app import stt, llm_agent, billing_adapter, persistence, tts, telephony
+from app import stt, llm_agent, billing_adapter, persistence, tts, telephony, ocr
 import app.telephony.twilio as telephony_twilio
 import app.telephony.common as telephony_common
 from app import settings as app_settings
@@ -260,13 +260,16 @@ def test_store_interaction(tmp_data_dir):
         items=[],
         amount={},
     )
-    session_dir = persistence.store_interaction(b"audio", "transcript", invoice)
+    session_dir = persistence.store_interaction(
+        b"audio", "transcript", invoice, image=b"img", image_filename="img.png"
+    )
     p = Path(session_dir)
     assert (p / "audio.wav").exists()
     assert (p / "transcript.txt").exists()
     assert (p / "transcript.json").exists()
     assert (p / "invoice.json").exists()
     assert (p / "invoice.pdf").exists()
+    assert (p / "image.png").exists()
 
 
 def test_process_audio(monkeypatch, tmp_data_dir):
@@ -297,8 +300,16 @@ def test_process_audio(monkeypatch, tmp_data_dir):
         billing_adapter, "send_to_billing_system", lambda i: {"ok": True}
     )
     monkeypatch.setattr(app_main, "send_to_billing_system", lambda i: {"ok": True})
-    monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: "dir")
-    monkeypatch.setattr(app_main, "store_interaction", lambda a, t, i: "dir")
+    monkeypatch.setattr(
+        persistence,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: "dir",
+    )
+    monkeypatch.setattr(
+        app_main,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: "dir",
+    )
 
     client = TestClient(app)
     response = client.post(
@@ -343,8 +354,16 @@ def test_process_audio_m4a(monkeypatch, tmp_data_dir):
         billing_adapter, "send_to_billing_system", lambda i: {"ok": True}
     )
     monkeypatch.setattr(app_main, "send_to_billing_system", lambda i: {"ok": True})
-    monkeypatch.setattr(persistence, "store_interaction", lambda a, t, i: "dir")
-    monkeypatch.setattr(app_main, "store_interaction", lambda a, t, i: "dir")
+    monkeypatch.setattr(
+        persistence,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: "dir",
+    )
+    monkeypatch.setattr(
+        app_main,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: "dir",
+    )
     monkeypatch.setattr(app_main, "_convert_to_wav", lambda b: b)
 
     client = TestClient(app)
@@ -374,6 +393,60 @@ def test_process_audio_invalid_invoice(monkeypatch):
     )
     assert response.status_code == 502
     assert "invoice context" in response.json()["detail"]
+
+
+def test_process_image(monkeypatch, tmp_data_dir):
+    """Processes image upload end-to-end"""
+    monkeypatch.setattr(ocr, "extract_text", lambda b: "transcript")
+    monkeypatch.setattr(app_main, "extract_text", lambda b: "transcript")
+    dummy_json = json.dumps(
+        {
+            "type": "InvoiceContext",
+            "customer": {"name": "Hans"},
+            "service": {"description": "test", "materialIncluded": True},
+            "items": [
+                {
+                    "description": "Arbeitszeit Geselle",
+                    "category": "labor",
+                    "quantity": 2,
+                    "unit": "h",
+                    "unit_price": 40,
+                    "worker_role": "Geselle",
+                }
+            ],
+            "amount": {"total": 100.0, "currency": "EUR"},
+        }
+    )
+    monkeypatch.setattr(llm_agent, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(app_main, "extract_invoice_context", lambda t: dummy_json)
+    monkeypatch.setattr(
+        billing_adapter, "send_to_billing_system", lambda i: {"ok": True}
+    )
+    monkeypatch.setattr(app_main, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        persistence,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: "dir",
+    )
+    monkeypatch.setattr(
+        app_main,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: "dir",
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/process-image/",
+        files={"file": ("img.png", b"data", "image/png")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transcript"] == "transcript"
+    assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["invoice"]["items"][0]["worker_role"] == "Geselle"
+    assert data["billing_result"] == {"ok": True}
+    assert data["pdf_path"].endswith("dir/invoice.pdf")
+    assert data["pdf_url"].endswith("/dir/invoice.pdf")
 
 
 def test_root_endpoint():
@@ -472,10 +545,14 @@ def test_twilio_recording_followup(monkeypatch, tmp_data_dir):
         telephony_common, "send_to_billing_system", lambda i: {"ok": True}
     )
     monkeypatch.setattr(
-        persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+        persistence,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: str(tmp_data_dir),
     )
     monkeypatch.setattr(
-        telephony_common, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+        telephony_common,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: str(tmp_data_dir),
     )
     monkeypatch.setattr(tts, "text_to_speech", lambda t: b"mp3")
     monkeypatch.setattr(telephony_common, "text_to_speech", lambda t: b"mp3")
@@ -539,10 +616,14 @@ def test_sipgate_recording(monkeypatch, tmp_data_dir):
         telephony_common, "send_to_billing_system", lambda i: {"ok": True}
     )
     monkeypatch.setattr(
-        persistence, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+        persistence,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: str(tmp_data_dir),
     )
     monkeypatch.setattr(
-        telephony_common, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+        telephony_common,
+        "store_interaction",
+        lambda a, t, i, image=None, image_filename=None: str(tmp_data_dir),
     )
     monkeypatch.setattr(tts, "text_to_speech", lambda t: b"mp3")
     monkeypatch.setattr(telephony_common, "text_to_speech", lambda t: b"mp3")
