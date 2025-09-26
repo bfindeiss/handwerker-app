@@ -102,7 +102,7 @@ def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["done"] is True
+    assert data["done"] is False
     assert "Platzhalter" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
     assert any(item["category"] == "labor" for item in data["invoice"]["items"])

@@ -1,3 +1,4 @@
+import json
 import pytest
 from datetime import date
 
@@ -56,8 +57,8 @@ def test_apply_pricing_defaults():
     assert invoice.issue_date == date.today()
 
 
-def test_apply_pricing_travel_overrides_unit_price():
-    """Provided travel prices are overridden by the configured rate."""
+def test_apply_pricing_travel_keeps_existing_unit_price():
+    """Vorhandene Anfahrtskosten bleiben erhalten."""
     invoice = _base_invoice(
         [
             InvoiceItem(
@@ -72,7 +73,7 @@ def test_apply_pricing_travel_overrides_unit_price():
 
     apply_pricing(invoice)
 
-    assert invoice.items[0].unit_price == settings.travel_rate_per_km
+    assert invoice.items[0].unit_price == 123.45
 
 
 def test_apply_pricing_material_missing():
@@ -145,6 +146,30 @@ def test_repricing_after_item_changes():
     # invoice metadata should not change on repricing
     assert invoice.invoice_number == number
     assert invoice.issue_date == issue_date
+
+
+def test_user_supplied_material_price_is_remembered(tmp_path, monkeypatch):
+    path = tmp_path / "materials.json"
+    monkeypatch.setattr(settings, "material_prices_path", str(path))
+
+    invoice = _base_invoice(
+        [
+            InvoiceItem(
+                description="Spezialkabel",
+                category="material",
+                quantity=2,
+                unit="stk",
+                unit_price=19.99,
+            )
+        ]
+    )
+
+    apply_pricing(invoice)
+
+    assert path.exists()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["spezialkabel"] == pytest.approx(19.99)
+
 
 def test_apply_pricing_material_placeholder_uses_defaults():
     invoice = _base_invoice(
