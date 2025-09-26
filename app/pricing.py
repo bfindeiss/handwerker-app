@@ -7,7 +7,7 @@ from fastapi import HTTPException
 
 from app.models import InvoiceContext, InvoiceItem
 from app.settings import settings
-from app.materials import lookup_material_price
+from app.materials import lookup_material_price, register_material_price
 
 
 def apply_pricing(invoice: InvoiceContext) -> None:
@@ -22,9 +22,9 @@ def apply_pricing(invoice: InvoiceContext) -> None:
 
     for item in invoice.items:
         if item.category == "travel":
-            # always use configured travel rate, even if a price was provided
-            item.unit_price = settings.travel_rate_per_km
-        elif not item.unit_price:
+            if _price_missing(item):
+                item.unit_price = settings.travel_rate_per_km
+        elif _price_missing(item):
             try:
                 _apply_item_price(item)
             except HTTPException:
@@ -32,6 +32,10 @@ def apply_pricing(invoice: InvoiceContext) -> None:
                     item.unit_price = settings.material_rate_default or 0.0
                 else:
                     raise
+        elif item.category == "material":
+            # Nutzerpreise für unbekannte Materialien für zukünftige Anfragen merken.
+            if lookup_material_price(item.description) is None:
+                register_material_price(item.description, item.unit_price)
 
     net = sum(i.total for i in invoice.items)
     tax = round(net * settings.vat_rate, 2)
@@ -53,6 +57,8 @@ def _apply_item_price(item: InvoiceItem) -> None:
             item.unit_price = settings.labor_rate_meister
         elif "gesell" in role:
             item.unit_price = settings.labor_rate_geselle
+        elif "azub" in role:
+            item.unit_price = settings.labor_rate_default * 0.6
         else:
             item.unit_price = settings.labor_rate_default
     elif item.category == "material":
@@ -71,3 +77,9 @@ def _apply_item_price(item: InvoiceItem) -> None:
             status_code=400,
             detail=f"Unbekannte Kategorie '{item.category}'",
         )
+
+
+def _price_missing(item: InvoiceItem) -> bool:
+    """Erkennt, ob eine Position noch keinen nutzbaren Preis besitzt."""
+
+    return item.unit_price in (None, 0.0)

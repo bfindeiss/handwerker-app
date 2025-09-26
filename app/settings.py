@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # Optionale PDF-Vorlage für Rechnungen
     invoice_template_pdf: str | None = None
 
+    # Optionaler Pfad zu einer externen Materialpreisdatei (JSON)
+    material_prices_path: str | None = None
+
     # Verhalten beim Start, falls das LLM nicht erreichbar ist
     fail_on_llm_unavailable: bool = False
 

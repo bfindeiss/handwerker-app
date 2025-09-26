@@ -33,6 +33,10 @@ class InvoiceItem(BaseModel):
     unit_price: float
     # Optional kann die Rolle des Mitarbeiters angegeben werden.
     worker_role: Optional[str] = None
+    # Ursprüngliche Kategorie des LLMs, bevor Heuristiken eingreifen.
+    original_category: Optional[str] = None
+    # Quelle der finalen Kategorie ("llm" oder "heuristic").
+    category_source: Optional[str] = None
 
     @property
     def total(self) -> float:
@@ -111,12 +115,26 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
         unit = (raw.get("unit") or "").strip().casefold()
         cat = (raw.get("category") or "").casefold()
 
+        if cat in {"material", "travel", "labor"}:
+            normalised_category = cat
+        else:
+            normalised_category = None
+
+        heuristic_category: str | None = None
         if any(kw in desc for kw in travel_keywords):
-            raw["category"] = "travel"
+            heuristic_category = "travel"
         elif unit in labor_units or any(kw in desc for kw in labor_keywords):
-            raw["category"] = "labor"
-        elif cat not in {"material", "travel", "labor"}:
-            raw["category"] = "material"
+            heuristic_category = "labor"
+        elif not normalised_category:
+            heuristic_category = "material"
+
+        raw["original_category"] = normalised_category
+        if heuristic_category and heuristic_category != normalised_category:
+            raw["category"] = heuristic_category
+            raw["category_source"] = "heuristic"
+        else:
+            raw["category"] = normalised_category or heuristic_category or "material"
+            raw["category_source"] = "llm" if normalised_category else "heuristic"
 
         if unit in currency_units:
             value = max(raw.get("quantity", 0), raw.get("unit_price", 0))

@@ -41,6 +41,14 @@ _CUSTOMER_NAME_PLACEHOLDERS = {
     "erika mustermann",
 }
 
+_ROLE_KEYWORDS = {
+    r"\bmeister\b": "Meister",
+    r"\bmeisterstund": "Meister",
+    r"\bgesell": "Geselle",
+    r"\bazub": "Azubi",
+    r"\blehrling": "Azubi",
+}
+
 
 def _user_set_customer_name(name: str | None, transcript: str | None = None) -> bool:
     """Prüft, ob ein Kundenname vom Nutzer stammt."""
@@ -194,6 +202,30 @@ def fill_default_fields(invoice: InvoiceContext) -> None:
         invoice.service["description"] = "Dienstleistung nicht näher beschrieben"
 
 
+def _normalize_worker_role(role: str | None) -> str | None:
+    """Bringt Rollenbezeichnungen auf eine einheitliche Schreibweise."""
+
+    if not role:
+        return None
+
+    text = role.strip().casefold()
+    for pattern, label in _ROLE_KEYWORDS.items():
+        if re.search(pattern, text):
+            return label
+    return role.strip() or None
+
+
+def _roles_from_transcript(transcript: str) -> set[str]:
+    """Erkennt erwähnte Handwerkerrollen im Gespräch."""
+
+    roles: set[str] = set()
+    lowered = transcript or ""
+    for pattern, label in _ROLE_KEYWORDS.items():
+        if re.search(pattern, lowered, re.IGNORECASE):
+            roles.add(label)
+    return roles
+
+
 def _handle_conversation(
     session_id: str, transcript_part: str, audio_bytes: bytes
 ) -> dict:
@@ -314,6 +346,27 @@ def _handle_conversation(
             )
             placeholder_notice = True
 
+    # Rollen aus dem Gespräch ableiten.
+    detected_roles = _roles_from_transcript(transcript_part)
+    if not detected_roles:
+        detected_roles = _roles_from_transcript(full_transcript)
+    for item in invoice.items:
+        normalized = _normalize_worker_role(item.worker_role)
+        if normalized != item.worker_role:
+            item.worker_role = normalized
+
+    labor_items_without_role = [
+        item for item in invoice.items if item.category == "labor" and not item.worker_role
+    ]
+    ambiguous_roles = False
+    if labor_items_without_role:
+        if len(detected_roles) == 1:
+            assigned_role = next(iter(detected_roles))
+            for item in labor_items_without_role:
+                item.worker_role = assigned_role
+        elif len(detected_roles) > 1:
+            ambiguous_roles = True
+
     # Platzhalter und geschätzte Arbeitszeit ergänzen.
     travel_item = next((i for i in invoice.items if i.category == "travel"), None)
     if not travel_item:
@@ -338,6 +391,34 @@ def _handle_conversation(
     apply_pricing(invoice)
 
     INVOICE_STATE[session_id] = invoice
+
+    if ambiguous_roles:
+        role_list = ", ".join(sorted(detected_roles)) or "verschiedene Rollen"
+        question = (
+            "Ich habe mehrere Rollen im Gespräch gehört ("
+            f"{role_list}"
+            "). Für welche Rolle sollen die Arbeitsstunden berechnet werden?"
+        )
+        already_asked = any(
+            msg.get("content") == question and msg.get("role") == "assistant"
+            for msg in session_msgs
+        )
+        if not already_asked:
+            session_msgs.append({"role": "assistant", "content": question})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
+        audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
+        return {
+            "done": False,
+            "question": question,
+            "audio": audio_b64,
+            "transcript": full_transcript,
+            "invoice": invoice.model_dump(mode="json"),
+            "log_dir": log_dir,
+            "pdf_path": pdf_path,
+            "pdf_url": pdf_url,
+        }
 
     missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
     # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
@@ -388,6 +469,27 @@ def _handle_conversation(
             "log_dir": log_dir,
             "pdf_path": pdf_path,
             "pdf_url": pdf_url,
+        }
+
+    if placeholder_notice:
+        message = (
+            "Ich habe bislang nur Platzhalter für Arbeitszeit, Material und Anfahrt "
+            "eingesetzt. Bitte beschreibe die tatsächlichen Positionen."
+        )
+        session_msgs.append({"role": "assistant", "content": message})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
+        audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+        return {
+            "done": False,
+            "message": message,
+            "audio": audio_b64,
+            "invoice": invoice.model_dump(mode="json"),
+            "log_dir": log_dir,
+            "pdf_path": pdf_path,
+            "pdf_url": pdf_url,
+            "transcript": full_transcript,
         }
 
     # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
