@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     stt_model: str = "whisper-1"
     stt_prompt: str | None = None
     stt_language: str = "de"
+    # Bild-zu-Text-Konvertierung
+    ocr_provider: str = "tesseract"
 
     # Telefonie und Sprachausgabe
     telephony_provider: str = "twilio"

@@ -21,6 +21,7 @@ from app.settings import settings
 from app.telephony import router as telephony_router
 from app.conversation import router as conversation_router
 from app.stt import transcribe_audio
+from app.ocr import extract_text
 from app.logging_config import configure_logging
 from app.request_id import request_id_ctx_var
 
@@ -166,6 +167,74 @@ async def process_audio(file: UploadFile = File(...)):
         pdf_url = "/" + pdf_path.replace("\\", "/")
 
         # 7) Die aufbereiteten Daten an den Aufrufer zurückgeben.
+        return {
+            "transcript": transcript,
+            "invoice": invoice.model_dump(mode="json"),
+            "billing_result": result,
+            "log_dir": log_dir,
+            "pdf_path": pdf_path,
+            "pdf_url": pdf_url,
+        }
+    finally:
+        total_duration = time.perf_counter() - start_total
+        logger.info(
+            "Total processing %s in %.3f s",
+            "succeeded" if success else "failed",
+            total_duration,
+        )
+
+
+@app.post("/process-image/")
+async def process_image(file: UploadFile = File(...)):
+    """Nimmt ein Bild entgegen und extrahiert Rechnungsdaten per OCR."""
+    start_total = time.perf_counter()
+    success = False
+    try:
+        image_bytes = await file.read()
+
+        start = time.perf_counter()
+        transcript = extract_text(image_bytes)
+        ocr_duration = time.perf_counter() - start
+        logger.info("OCR took %.3f s", ocr_duration)
+        logger.debug("OCR text: %s", transcript)
+
+        start = time.perf_counter()
+        try:
+            invoice_json = extract_invoice_context(transcript)
+            logger.debug("LLM raw response: %s", invoice_json)
+        except HTTPException as exc:
+            logger.exception("LLM backend failure: %s", exc.detail)
+            raise
+        finally:
+            llm_duration = time.perf_counter() - start
+            logger.info("LLM call took %.3f s", llm_duration)
+
+        try:
+            invoice = parse_invoice_context(invoice_json)
+        except ValueError as exc:
+            logger.exception(
+                "Failed to parse invoice context: %s. Transcript: %s, Raw response: %s",
+                exc,
+                transcript,
+                invoice_json,
+            )
+            raise HTTPException(status_code=502, detail=str(exc))
+
+        apply_pricing(invoice)
+
+        start = time.perf_counter()
+        result = send_to_billing_system(invoice)
+        billing_duration = time.perf_counter() - start
+        logger.info("Invoice creation took %.3f s", billing_duration)
+        log_dir = store_interaction(
+            None, transcript, invoice, image=image_bytes, image_filename=file.filename
+        )
+        logger.info("Processed image successfully: log_dir=%s", log_dir)
+        success = True
+
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
+
         return {
             "transcript": transcript,
             "invoice": invoice.model_dump(mode="json"),
