@@ -61,7 +61,7 @@ cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 # BILLING_ADAPTER=app.billing_adapters.sevdesk_mcp:SevDeskMCPAdapter
 # MCP_ENDPOINT=http://localhost:8001
 # LLM_PROVIDER=ollama|openai
-# LLM_MODEL=deepseek-r1:latest  # alternativ: llama3, orca2, mistral
+# LLM_MODEL=phi3:mini  # alternativ: llama3, orca2, mistral
 # STT_PROVIDER=whisper|openai|command
 # Für whisper/command muss ffmpeg als System-Binary installiert sein
 # z.B. "brew install ffmpeg" (macOS) oder "sudo apt install ffmpeg" (Ubuntu)
@@ -160,10 +160,10 @@ Dann in der `.env` folgende Einstellungen setzen:
 
 ```bash
 LLM_PROVIDER=ollama
-LLM_MODEL=deepseek-r1:latest
+LLM_MODEL=phi3:mini
 ```
 
-Das Modell `deepseek-r1:latest` liefert leistungsfähige Ergebnisse. Kleinere Modelle wie `mistral:latest`, `llama3:latest` oder `orca2:latest` funktionieren ebenfalls und benötigen weniger Ressourcen. `OLLAMA_BASE_URL` kann bei Bedarf angepasst werden. Der Timeout für Ollama-Anfragen beträgt standardmäßig 300 Sekunden und lässt sich über `OLLAMA_TIMEOUT` konfigurieren. Danach wie gewohnt `uvicorn` starten und Anfragen an `/process-audio/` senden.
+Das Modell `phi3:mini` liefert leistungsfähige Ergebnisse und benötigt dabei vergleichsweise wenig Ressourcen. Alternativ funktionieren Modelle wie `mistral:latest`, `llama3:latest` oder `orca2:latest` ebenfalls. `OLLAMA_BASE_URL` kann bei Bedarf angepasst werden. Der Timeout für Ollama-Anfragen beträgt standardmäßig 300 Sekunden und lässt sich über `OLLAMA_TIMEOUT` konfigurieren. Danach wie gewohnt `uvicorn` starten und Anfragen an `/process-audio/` senden.
 
 ## MacBook Pro: Lokale Ausführung mit Ollama
 
