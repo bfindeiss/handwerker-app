@@ -109,8 +109,24 @@ def parse_invoice_context(invoice_json: str) -> "InvoiceContext":
     labor_keywords = ("stund", "arbeitszeit", "handwerker")
     labor_units = {"h", "std", "stunde", "stunden"}
 
-    data.setdefault("items", [])
-    for raw in data["items"]:
+    raw_items = data.get("items", [])
+    if not isinstance(raw_items, list):
+        raw_items = []
+    data["items"] = raw_items
+
+    for index, raw in enumerate(raw_items):
+        if isinstance(raw, str):
+            raw = {
+                "description": raw,
+                "quantity": 0,
+                "unit": "",
+                "unit_price": 0.0,
+            }
+            raw_items[index] = raw
+        elif not isinstance(raw, dict):
+            # Nicht interpretierbare Positionen werden übersprungen.
+            continue
+
         desc = (raw.get("description") or "").casefold()
         unit = (raw.get("unit") or "").strip().casefold()
         cat = (raw.get("category") or "").casefold()
