@@ -268,6 +268,80 @@ def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
     )
 
 
+def test_conversation_extracts_hours_and_materials(monkeypatch, tmp_data_dir):
+    """Transkriptangaben zu Stunden und Material werden übernommen."""
+
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+
+    transcript = (
+        "Bitte erstelle eine Rechnung für den Einbau einer Tür und 2 Fenstern bei "
+        "Hr. Hans Müller in der Rathausstr. 11 in 83727 Schliersee. "
+        "Die Tür waren 500€ Materialkosten, die Fenster je 200€. Zusätzlich hatte ich "
+        "noch 2 Meisterstunden und 4 Gesellenstunden, und 35km Anfahrtsweg."
+    )
+
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: transcript)
+
+    def fake_extract(text):
+        return json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {"address": "Rathausstr. 11 in Schliersee"},
+                "service": {
+                    "description": "Einbau einer Tür und 2 Fenstern",
+                    "materialIncluded": False,
+                },
+                "items": [],
+                "amount": {},
+            }
+        )
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": "extract"},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    invoice = payload["invoice"]
+
+    assert invoice["customer"]["name"] == "Hans Müller"
+
+    items = {(item["description"], item["category"]): item for item in invoice["items"]}
+
+    door = items[("Tür", "material")]
+    assert door["quantity"] == pytest.approx(1.0)
+    assert door["unit_price"] == pytest.approx(500.0)
+
+    windows = items[("Fenster", "material")]
+    assert windows["quantity"] == pytest.approx(2.0)
+    assert windows["unit_price"] == pytest.approx(200.0)
+
+    meister = items[("Arbeitszeit Meister", "labor")]
+    assert meister["quantity"] == pytest.approx(2.0)
+    assert meister["unit_price"] == pytest.approx(70.0)
+
+    geselle = items[("Arbeitszeit Geselle", "labor")]
+    assert geselle["quantity"] == pytest.approx(4.0)
+    assert geselle["unit_price"] == pytest.approx(50.0)
+
+    travel = items[("Anfahrt", "travel")]
+    assert travel["quantity"] == pytest.approx(35.0)
+    assert travel["unit_price"] == pytest.approx(1.0)
+
+    assert invoice["amount"]["net"] == pytest.approx(1275.0)
+    assert invoice["amount"]["total"] == pytest.approx(1517.25)
+
+
 def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
     """Corrections with invalid parse keep prior context."""
     conversation.SESSIONS.clear()

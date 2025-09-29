@@ -49,6 +49,43 @@ _ROLE_KEYWORDS = {
     r"\blehrling": "Azubi",
 }
 
+_LABOR_ROLE_LABELS = {
+    "meister": "Meister",
+    "gesell": "Geselle",
+    "azub": "Azubi",
+}
+
+_LABOR_QUANTITY_PATTERNS = [
+    (
+        re.compile(
+            r"(\d+(?:[.,]\d+)?)\s*(meister|gesell(?:e|en)?|azub(?:i|is)?)\w*",
+            re.IGNORECASE,
+        ),
+        1,
+        2,
+    ),
+    (
+        re.compile(
+            r"(meister|gesell(?:e|en)?|azub(?:i|is)?)\w*\s*(?:von\s+|für\s+)?(\d+(?:[.,]\d+)?)\s*(?:stunden|std|h)",
+            re.IGNORECASE,
+        ),
+        2,
+        1,
+    ),
+]
+
+_MATERIAL_PRICE_PATTERN = re.compile(
+    r"(?:die|der|das|den|ein|eine|einen|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|\d+)\s+"
+    r"((?:[a-zäöüß-]+(?:\s+[a-zäöüß-]+){0,2}))\s+(?:je|für|zu|kostet(?:en)?|waren|war)\s+"
+    r"(\d+(?:[.,]\d+)?)\s*(?:€|eur|euro)",
+    re.IGNORECASE,
+)
+
+_MATERIAL_COUNT_PATTERN = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*(?:x\s*)?([a-zäöüß][a-zäöüß-]*)",
+    re.IGNORECASE,
+)
+
 
 def _user_set_customer_name(name: str | None, transcript: str | None = None) -> bool:
     """Prüft, ob ein Kundenname vom Nutzer stammt."""
@@ -86,6 +123,224 @@ def _save_env_value(key: str, value: str) -> None:
 
     ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+
+def _labor_hours_from_transcript(transcript: str) -> dict[str, float]:
+    """Extrahiert Arbeitsstunden pro Rolle aus dem Gesprächstext."""
+
+    hours: dict[str, float] = {}
+    if not transcript:
+        return hours
+
+    for pattern, qty_index, role_index in _LABOR_QUANTITY_PATTERNS:
+        for match in pattern.finditer(transcript):
+            qty_str = match.group(qty_index)
+            role_raw = match.group(role_index)
+
+            if not qty_str or not role_raw:
+                continue
+
+            role_key = role_raw.casefold()
+            label = None
+            for key, value in _LABOR_ROLE_LABELS.items():
+                if key in role_key:
+                    label = value
+                    break
+
+            if not label:
+                continue
+
+            tail = match.group(0).casefold()
+            if "stund" not in tail and not re.search(r"\b(h|std)\b", tail):
+                # Stellen wie "2 Meister" ohne Stundenangabe ignorieren.
+                continue
+
+            try:
+                qty = float(qty_str.replace(",", "."))
+            except ValueError:  # pragma: no cover - defensive
+                continue
+
+            hours[label] = hours.get(label, 0.0) + qty
+
+    return hours
+
+
+def _extract_customer_name(transcript: str) -> str | None:
+    """Versucht den Kundennamen aus Formulierungen wie 'bei Hr. ...' zu lesen."""
+
+    if not transcript:
+        return None
+
+    pattern = re.compile(
+        r"bei\s+(?:herrn?|herr|hr\.?|frau|fr\.?|firma)?\s*([a-zäöüß'\-\s]+?)(?=\s+(?:in|am|auf|an|mit|und|,|\.|$))",
+        re.IGNORECASE,
+    )
+    match = pattern.search(transcript)
+    if not match:
+        return None
+
+    name = match.group(1).strip()
+    if not name:
+        return None
+
+    # Entfernt eventuell führende Artikel wie "der" oder "die" innerhalb des Namens.
+    name = re.sub(r"^(der|die|das)\s+", "", name, flags=re.IGNORECASE)
+    return name.title()
+
+
+def _normalize_material_key(word: str) -> list[str]:
+    """Erzeugt Vergleichsvarianten für Materialbeschreibungen."""
+
+    variants: list[str] = []
+    lowered = word.casefold()
+    if lowered:
+        variants.append(lowered)
+    for suffix in ("ern", "en", "n"):
+        if lowered.endswith(suffix) and len(lowered) > len(suffix) + 1:
+            shortened = lowered[: -len(suffix)]
+            if shortened and shortened not in variants:
+                variants.append(shortened)
+    return variants
+
+
+def _material_counts_from_transcript(transcript: str) -> dict[str, float]:
+    """Sucht nach Mengenangaben wie '2 Fenster'."""
+
+    counts: dict[str, float] = {}
+    if not transcript:
+        return counts
+
+    skip_words = {
+        "km",
+        "kilometer",
+        "kilometern",
+        "stunden",
+        "stunde",
+        "std",
+        "meisterstunden",
+        "gesellenstunden",
+    }
+
+    for match in _MATERIAL_COUNT_PATTERN.finditer(transcript):
+        qty_str, word = match.groups()
+        if not qty_str or not word:
+            continue
+
+        normalized_forms = _normalize_material_key(word)
+        if any(form in skip_words for form in normalized_forms):
+            continue
+
+        try:
+            qty = float(qty_str.replace(",", "."))
+        except ValueError:  # pragma: no cover - defensive
+            continue
+
+        for form in normalized_forms:
+            counts[form] = qty
+
+    return counts
+
+
+def _ensure_material_items_from_transcript(
+    invoice: InvoiceContext, transcript: str
+) -> None:
+    """Ergänzt fehlende Materialpositionen aus einfachen Textmustern."""
+
+    if not transcript:
+        return
+
+    existing = {
+        item.description.casefold(): item
+        for item in invoice.items
+        if item.category == "material"
+    }
+    counts = _material_counts_from_transcript(transcript)
+
+    for match in _MATERIAL_PRICE_PATTERN.finditer(transcript):
+        raw_desc, price_str = match.groups()
+        if not raw_desc or not price_str:
+            continue
+
+        desc = raw_desc.strip()
+        key = desc.casefold()
+        try:
+            price = float(price_str.replace(",", "."))
+        except ValueError:  # pragma: no cover - defensive
+            continue
+
+        quantity = 1.0
+        for form in _normalize_material_key(desc):
+            if form in counts:
+                quantity = counts[form]
+                break
+
+        item = existing.get(key)
+
+        if item:
+            if not item.quantity:
+                item.quantity = quantity
+            if not item.unit_price:
+                item.unit_price = price
+            if not item.unit:
+                item.unit = "Stk"
+        else:
+            new_item = InvoiceItem(
+                description=desc.title(),
+                category="material",
+                quantity=quantity,
+                unit="Stk",
+                unit_price=price,
+            )
+            invoice.items.append(new_item)
+            existing[key] = new_item
+
+    if any(item.category == "material" for item in invoice.items):
+        invoice.service.setdefault("materialIncluded", True)
+
+
+def _ensure_labor_items_from_transcript(
+    invoice: InvoiceContext, transcript: str
+) -> None:
+    """Legt Arbeitspositionen anhand erkannter Stunden an."""
+
+    hours = _labor_hours_from_transcript(transcript)
+    if not hours:
+        return
+
+    for item in invoice.items:
+        if item.category == "labor" and item.worker_role:
+            key = item.worker_role.casefold()
+            for pattern, label in _LABOR_ROLE_LABELS.items():
+                if pattern in key and label in hours and not item.quantity:
+                    item.quantity = hours[label]
+
+    for role, qty in hours.items():
+        if qty <= 0:
+            continue
+        existing = next(
+            (
+                item
+                for item in invoice.items
+                if item.category == "labor" and (item.worker_role or "").casefold() == role.casefold()
+            ),
+            None,
+        )
+        if existing:
+            if not existing.quantity:
+                existing.quantity = qty
+            if not existing.unit:
+                existing.unit = "h"
+            continue
+
+        invoice.items.append(
+            InvoiceItem(
+                description=f"Arbeitszeit {role}",
+                category="labor",
+                quantity=qty,
+                unit="h",
+                unit_price=0.0,
+                worker_role=role,
+            )
+        )
 
 def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> InvoiceContext:
     """Merge ``new`` invoice data into ``existing`` without overwriting user input.
@@ -367,6 +622,9 @@ def _handle_conversation(
         elif len(detected_roles) > 1:
             ambiguous_roles = True
 
+    _ensure_labor_items_from_transcript(invoice, full_transcript)
+    _ensure_material_items_from_transcript(invoice, full_transcript)
+
     # Platzhalter und geschätzte Arbeitszeit ergänzen.
     travel_item = next((i for i in invoice.items if i.category == "travel"), None)
     if not travel_item:
@@ -381,6 +639,11 @@ def _handle_conversation(
         )
     elif distance:
         travel_item.quantity = distance
+
+    if not invoice.customer.get("name"):
+        extracted_name = _extract_customer_name(full_transcript)
+        if _user_set_customer_name(extracted_name, full_transcript):
+            invoice.customer["name"] = extracted_name
 
     fill_default_fields(invoice)
     if not any(item.category == "labor" for item in invoice.items):
