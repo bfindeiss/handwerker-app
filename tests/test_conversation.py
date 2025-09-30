@@ -78,8 +78,8 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     assert data["done"] is True
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["invoice"]["amount"]["total"] == 47.6
-    assert "Rechnung" in data["message"]
-    assert "47.6" in data["message"]
+    assert "vorläufige rechnung" in data["message"].lower()
+    assert "47,60 euro" in data["message"].lower()
 
 
 def test_conversation_parse_error(monkeypatch, tmp_data_dir):
