@@ -685,6 +685,55 @@ def test_conversation_direct_price_correction(monkeypatch):
     assert conversation.SESSION_STATUS[session_id] == "collecting"
 
 
+def test_conversation_direct_quantity_correction_without_field(monkeypatch):
+    """Defaults to quantity when field is omitted in correction command."""
+
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
+
+    session_id = "corr-qty-default"
+    invoice = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": "Kunde"},
+        service={"description": "Service"},
+        items=[
+            InvoiceItem(
+                description="Arbeitszeit",
+                category="labor",
+                quantity=2.0,
+                unit="h",
+                unit_price=40.0,
+                worker_role="Geselle",
+            )
+        ],
+        amount={},
+    )
+    apply_pricing(invoice)
+    conversation.INVOICE_STATE[session_id] = invoice
+
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+    monkeypatch.setattr(
+        conversation,
+        "extract_invoice_context",
+        lambda t: pytest.fail("LLM merge should not run for direct corrections"),
+    )
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation-text/",
+        data={"session_id": session_id, "text": "Position 1 sind 4 Stunden"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["invoice"]["items"][0]["quantity"] == 4.0
+    message_lower = data["message"].lower()
+    assert "menge in position 1 ist jetzt 4" in message_lower
+    assert "ich fasse gleich neu zusammen" in message_lower
+    assert conversation.INVOICE_STATE[session_id].items[0].quantity == pytest.approx(4.0)
+
+
 def test_conversation_direct_customer_correction(monkeypatch):
     """Updates customer name via explicit correction command."""
 
