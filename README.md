@@ -148,6 +148,22 @@ wird die Rechnung erstellt und eine Abschlussnachricht ausgegeben. Die Weboberfl
 
 Zusätzlich erkennt der Assistent einfache Konfigurationsbefehle. Mit `"Speichere meinen Firmennamen <Name>"` lässt sich der Firmenname in der Datei `.env` unter `COMPANY_NAME` ablegen; eine Bestätigung erfolgt per Text und Audio.
 
+### Bestätigung & Korrekturen im Telefon-Workflow
+
+Im Telefonkontext bleibt die Aufnahme so lange offen, bis der Kunde die
+zusammengefassten Rechnungsdaten bestätigt. Sobald alle Positionen erfasst
+sind, fasst der Assistent die wichtigsten Informationen (Kunde, Leistung,
+Positionen, Gesamtbetrag) in einer Zwischenmeldung zusammen und markiert den
+Status als `awaiting_confirmation`. Erst nach einem zustimmenden Beitrag wie
+„Ja, passt“ wird die Rechnung finalisiert und an das angebundene
+Abrechnungssystem gesendet.
+
+Korrekturen oder Ablehnungen – etwa „Nein, Menge drei“ – setzen den
+Bestätigungsstatus automatisch zurück. Der Assistent verarbeitet die neuen
+Angaben, generiert eine aktualisierte Zusammenfassung und fragt erneut nach der
+Freigabe. So lassen sich Missverständnisse direkt innerhalb des Telefongesprächs
+klären, ohne dass versehentlich falsche Rechnungen verschickt werden.
+
 ## Lokaler LLM (Ollama)
 
 Um ein lokales Modell über Ollama zu nutzen, muss zunächst der Ollama Server laufen:

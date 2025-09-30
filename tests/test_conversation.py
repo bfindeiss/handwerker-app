@@ -13,12 +13,14 @@ from app.pricing import apply_pricing  # noqa: E402
 
 
 def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
-    """Generates a provisional invoice even with sparse input."""
+    """Generates invoice summary first and finalizes after confirmation."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
 
     transcripts = iter(["", "Hans Malen", "Ja bitte"])
+    transcripts = iter(["Hans Malen", "Ja, passt."])
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
 
     def fake_extract(text):
@@ -62,6 +64,11 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     assert resp.status_code == 200
     data = resp.json()
     assert data["done"] is False
+    assert data["status"] == "awaiting_confirmation"
+    assert "Hans" in data["summary"]
+    assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["invoice"]["amount"]["total"] == 47.6
+    assert data["done"] is False
     assert "Soll ich" in data["message"]
     invoice = data["invoice"]
     assert invoice["customer"]["name"] == "Unbekannter Kunde"
@@ -90,10 +97,89 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     assert resp.status_code == 200
     data = resp.json()
     assert data["done"] is True
+    assert data["status"] == "confirmed"
+    assert "Rechnung bestätigt" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["invoice"]["amount"]["total"] == 47.6
     assert "vorläufige rechnung" in data["message"].lower()
     assert "47,60 euro" in data["message"].lower()
+
+
+def test_conversation_correction_flow(monkeypatch, tmp_data_dir):
+    """Allows corrections before confirmation and updates summary."""
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+    conversation.PENDING_CONFIRMATION.clear()
+
+    transcripts = iter(["Hans Malen zwei Stunden", "Nein, Menge drei", "Ja, passt."])
+    monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
+
+    def fake_extract(text):
+        quantity = 2
+        lowered = text.casefold()
+        if "menge drei" in lowered or "3" in lowered or "drei" in lowered:
+            quantity = 3
+        return json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {"name": "Hans"},
+                "service": {"description": "Malen", "materialIncluded": True},
+                "items": [
+                    {
+                        "description": "Arbeitszeit Geselle",
+                        "category": "labor",
+                        "quantity": quantity,
+                        "unit": "h",
+                        "unit_price": 40,
+                        "worker_role": "Geselle",
+                    }
+                ],
+                "amount": {"total": quantity * 47.6 / 2, "currency": "EUR"},
+            }
+        )
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    session_id = "corr"
+
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert data["status"] == "awaiting_confirmation"
+    assert "2 h" in data["summary"].lower()
+
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert data["status"] == "awaiting_confirmation"
+    assert "3 h" in data["summary"].lower()
+
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is True
+    assert data["status"] == "confirmed"
+    assert "Rechnung bestätigt" in data["message"]
 
 
 def test_conversation_parse_error(monkeypatch, tmp_data_dir):
@@ -101,6 +187,7 @@ def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "kaputt 7 km")
     monkeypatch.setattr(conversation, "extract_invoice_context", lambda t: "invalid")
     monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
@@ -134,6 +221,7 @@ def test_conversation_parse_error_keeps_state(monkeypatch, tmp_data_dir):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
 
     transcripts = iter(["Hans Malen", "Nur eine Stunde"])
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
@@ -180,6 +268,8 @@ def test_conversation_parse_error_keeps_state(monkeypatch, tmp_data_dir):
     )
     assert resp.status_code == 200
     data = resp.json()
+    assert data["done"] is False
+    assert data["status"] == "awaiting_confirmation"
     assert data["done"] is False
     assert "Soll ich" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Hans"
@@ -232,9 +322,45 @@ def test_conversation_defaults(monkeypatch, tmp_data_dir):
     """Missing customer/service fields are filled with placeholders."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.PENDING_CONFIRMATION.clear()
     conversation.SESSION_STATUS.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Malen 100")
+    monkeypatch.setattr(
+        conversation,
+        "extract_invoice_context",
+        lambda t: json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {},
+                "service": {},
+                "items": [],
+                "amount": {},
+            }
+        ),
+    )
+    monkeypatch.setattr(conversation, "send_to_billing_system", lambda i: {"ok": True})
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": "defaults"},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert data.get("status") == "awaiting_confirmation"
+    assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
+    assert (
+        data["invoice"]["service"]["description"]
+        == "Dienstleistung nicht näher beschrieben"
+    )
+    assert any(item["category"] == "labor" for item in data["invoice"]["items"])
 
 
 def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
@@ -242,6 +368,7 @@ def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Hans Dusche")
 
@@ -280,6 +407,8 @@ def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
     )
     assert resp.status_code == 200
     data = resp.json()
+    assert data["done"] is False
+    assert data["status"] == "awaiting_confirmation"
     assert data["done"] is False
     assert "Soll ich" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
@@ -400,6 +529,7 @@ def test_conversation_extracts_hours_and_materials(monkeypatch, tmp_data_dir):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
 
     transcript = (
         "Bitte erstelle eine Rechnung für den Einbau einer Tür und 2 Fenstern bei "
@@ -474,6 +604,7 @@ def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
 
     transcripts = iter(["Huber Fenster", "Nur eine Stunde"])
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
@@ -520,6 +651,8 @@ def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
     assert resp.status_code == 200
     data = resp.json()
     assert data["done"] is False
+    assert data.get("status") == "awaiting_confirmation"
+    assert data["done"] is False
     assert "Soll ich" in data["message"]
 
     resp = client.post(
@@ -541,6 +674,7 @@ def test_conversation_ignores_auto_customer_name(monkeypatch, tmp_data_dir):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "nur text")
 
@@ -573,6 +707,7 @@ def test_conversation_delete_position(monkeypatch):
     """Removes an invoice item when requested."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.PENDING_CONFIRMATION.clear()
     conversation.SESSION_STATUS.clear()
 
     session_id = "del"
