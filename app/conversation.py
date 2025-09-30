@@ -20,6 +20,7 @@ from app.models import (
 from app.persistence import store_interaction
 from app.pricing import apply_pricing
 from app.service_estimations import estimate_labor_item
+from app.summaries import build_invoice_summary
 from app.stt import transcribe_audio
 from app.tts import text_to_speech
 
@@ -793,13 +794,12 @@ def _handle_conversation(
         }
 
     # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
+    summary = build_invoice_summary(invoice)
     send_to_billing_system(invoice)
     message = (
-        "Vorläufige Rechnung für "
-        f"{invoice.customer['name']} über {invoice.amount['total']} Euro erstellt."
+        f"{summary} "
+        "Ich habe die vorläufige Rechnung erstellt und an das Abrechnungssystem übergeben."
     )
-    if placeholder_notice:
-        message = "Hinweis: Platzhalter verwendet. " + message
     session_msgs.append({"role": "assistant", "content": message})
     log_dir = store_interaction(audio_bytes, session_msgs, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
