@@ -697,14 +697,14 @@ def _handle_direct_corrections(session_id: str, transcript_part: str) -> dict | 
         m["content"] for m in session_msgs if m.get("role") == "user"
     )
 
-    return {
-        "done": False,
-        "message": spoken,
-        "audio": audio_b64,
-        "invoice": invoice.model_dump(mode="json"),
-        "transcript": current_transcript,
-        "session_status": SESSION_STATUS.get(session_id, "collecting"),
-    }
+    return dict(
+        done=False,
+        message=spoken,
+        audio=audio_b64,
+        invoice=invoice.model_dump(mode="json"),
+        transcript=current_transcript,
+        session_status=SESSION_STATUS.get(session_id, "collecting"),
+    )
 
 
 def _handle_conversation(
@@ -728,14 +728,14 @@ def _handle_conversation(
         else:
             message = "Kein Firmenname erkannt."
         audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
-        return {
-            "done": False,
-            "message": message,
-            "audio": audio_b64,
-            "transcript": " ".join(
+        return dict(
+            done=False,
+            message=message,
+            audio=audio_b64,
+            transcript=" ".join(
                 m["content"] for m in SESSIONS.get(session_id, [])
             ),
-        }
+        )
 
     # Prüft auf Befehle wie "Position X löschen".
     m = re.search(r"position\s+(\d+)\s+löschen", transcript_part, re.IGNORECASE)
@@ -754,14 +754,14 @@ def _handle_conversation(
         if invoice and not _user_set_customer_name(invoice.customer.get("name"), transcript_part):
             invoice.customer.pop("name", None)
             fill_default_fields(invoice)
-        return {
-            "done": False,
-            "message": message,
-            "audio": audio_b64,
-            "transcript": SESSIONS.get(session_id, ""),
-            "invoice": invoice.model_dump(mode="json") if invoice else None,
-            "session_status": SESSION_STATUS.get(session_id, "collecting"),
-        }
+        return dict(
+            done=False,
+            message=message,
+            audio=audio_b64,
+            transcript=SESSIONS.get(session_id, ""),
+            invoice=invoice.model_dump(mode="json") if invoice else None,
+            session_status=SESSION_STATUS.get(session_id, "collecting"),
+        )
 
     correction = _handle_direct_corrections(session_id, transcript_part)
     if correction:
@@ -909,16 +909,16 @@ def _handle_conversation(
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
-        return {
-            "done": False,
-            "question": question,
-            "audio": audio_b64,
-            "transcript": full_transcript,
-            "invoice": invoice.model_dump(mode="json"),
-            "log_dir": log_dir,
-            "pdf_path": pdf_path,
-            "pdf_url": pdf_url,
-        }
+        return dict(
+            done=False,
+            question=question,
+            audio=audio_b64,
+            transcript=full_transcript,
+            invoice=invoice.model_dump(mode="json"),
+            log_dir=log_dir,
+            pdf_path=pdf_path,
+            pdf_url=pdf_url,
+        )
 
     missing = [f for f in missing_invoice_fields(invoice) if f != "amount.total"]
     # Wenn ausschließlich Kunden-/Serviceangaben fehlen, reicht der Platzhalter aus.
@@ -935,16 +935,16 @@ def _handle_conversation(
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
-        return {
-            "done": False,
-            "question": question,
-            "audio": audio_b64,
-            "transcript": full_transcript,
-            "invoice": invoice.model_dump(mode="json"),
-            "log_dir": log_dir,
-            "pdf_path": pdf_path,
-            "pdf_url": pdf_url,
-        }
+        return dict(
+            done=False,
+            question=question,
+            audio=audio_b64,
+            transcript=full_transcript,
+            invoice=invoice.model_dump(mode="json"),
+            log_dir=log_dir,
+            pdf_path=pdf_path,
+            pdf_url=pdf_url,
+        )
 
     if missing:
         invoice = INVOICE_STATE.get(session_id, invoice)
@@ -960,16 +960,16 @@ def _handle_conversation(
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
-        return {
-            "done": False,
-            "question": question,
-            "audio": audio_b64,
-            "transcript": full_transcript,
-            "invoice": invoice.model_dump(mode="json"),
-            "log_dir": log_dir,
-            "pdf_path": pdf_path,
-            "pdf_url": pdf_url,
-        }
+        return dict(
+            done=False,
+            question=question,
+            audio=audio_b64,
+            transcript=full_transcript,
+            invoice=invoice.model_dump(mode="json"),
+            log_dir=log_dir,
+            pdf_path=pdf_path,
+            pdf_url=pdf_url,
+        )
 
     if placeholder_notice:
         message = (
@@ -981,16 +981,16 @@ def _handle_conversation(
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
         audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
-        return {
-            "done": False,
-            "message": message,
-            "audio": audio_b64,
-            "invoice": invoice.model_dump(mode="json"),
-            "log_dir": log_dir,
-            "pdf_path": pdf_path,
-            "pdf_url": pdf_url,
-            "transcript": full_transcript,
-        }
+        return dict(
+            done=False,
+            message=message,
+            audio=audio_b64,
+            invoice=invoice.model_dump(mode="json"),
+            log_dir=log_dir,
+            pdf_path=pdf_path,
+            pdf_url=pdf_url,
+            transcript=full_transcript,
+        )
 
     # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
     summary = build_invoice_summary(invoice)
@@ -1005,16 +1005,16 @@ def _handle_conversation(
     pdf_url = "/" + pdf_path.replace("\\", "/")
     audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
     SESSION_STATUS[session_id] = "completed"
-    return {
-        "done": True,
-        "message": message,
-        "audio": audio_b64,
-        "invoice": invoice.model_dump(mode="json"),
-        "log_dir": log_dir,
-        "pdf_path": pdf_path,
-        "pdf_url": pdf_url,
-        "transcript": full_transcript,
-    }
+    return dict(
+        done=True,
+        message=message,
+        audio=audio_b64,
+        invoice=invoice.model_dump(mode="json"),
+        log_dir=log_dir,
+        pdf_path=pdf_path,
+        pdf_url=pdf_url,
+        transcript=full_transcript,
+    )
 
 
 @router.post("/conversation/")
