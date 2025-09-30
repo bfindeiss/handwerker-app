@@ -92,8 +92,8 @@ _MATERIAL_COUNT_PATTERN = re.compile(
 )
 
 _ITEM_CORRECTION_PATTERN = re.compile(
-    r"position\s+(?P<index>\d+)\s+(?P<field>menge|preis|beschreibung)"
-    r"\s*(?:ist|auf|zu|soll(?:\s+sein)?|beträgt|=)?\s*(?P<value>.+)",
+    r"position\s+(?P<index>\d+)(?:\s+(?P<field>menge|preis|beschreibung))?"
+    r"\s*(?:ist|sind|auf|zu|soll(?:\s+sein)?|beträgt|=)?\s*(?P<value>.+)",
     re.IGNORECASE,
 )
 _CUSTOMER_CORRECTION_PATTERN = re.compile(
@@ -656,7 +656,7 @@ def _handle_direct_corrections(session_id: str, transcript_part: str) -> dict | 
     for match in _ITEM_CORRECTION_PATTERN.finditer(text):
         handled = True
         idx = int(match.group("index"))
-        field = match.group("field")
+        field = match.group("field") or "menge"
         raw_value = _clean_command_value(match.group("value"))
         success, message = update_item_field(invoice, idx, field, raw_value)
         feedback.append(message)
