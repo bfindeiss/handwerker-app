@@ -19,6 +19,7 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     conversation.SESSION_STATUS.clear()
     conversation.PENDING_CONFIRMATION.clear()
 
+    transcripts = iter(["", "Hans Malen", "Ja bitte"])
     transcripts = iter(["Hans Malen", "Ja, passt."])
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
 
@@ -67,8 +68,26 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     assert "Hans" in data["summary"]
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["invoice"]["amount"]["total"] == 47.6
+    assert data["done"] is False
+    assert "Soll ich" in data["message"]
+    invoice = data["invoice"]
+    assert invoice["customer"]["name"] == "Unbekannter Kunde"
+    assert any(item["category"] == "labor" for item in invoice["items"])
+    assert invoice["amount"]["total"] == 0.0
     assert "pdf_url" in data
     assert "message" in data
+
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["invoice"]["amount"]["total"] == 47.6
+    assert "Soll ich" in data["message"]
 
     resp = client.post(
         "/conversation/",
@@ -251,6 +270,8 @@ def test_conversation_parse_error_keeps_state(monkeypatch, tmp_data_dir):
     data = resp.json()
     assert data["done"] is False
     assert data["status"] == "awaiting_confirmation"
+    assert data["done"] is False
+    assert "Soll ich" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["invoice"]["service"]["description"] == "Malen"
     assert session_id in conversation.INVOICE_STATE
@@ -388,11 +409,118 @@ def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
     data = resp.json()
     assert data["done"] is False
     assert data["status"] == "awaiting_confirmation"
+    assert data["done"] is False
+    assert "Soll ich" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
     assert (
         data["invoice"]["service"]["description"]
         == "Dienstleistung nicht näher beschrieben"
     )
+
+    confirm = client.post(
+        "/conversation-text/",
+        data={"session_id": "s", "text": "ja"},
+    )
+    assert confirm.status_code == 200
+    confirmation_payload = confirm.json()
+    assert confirmation_payload["done"] is True
+
+
+def test_conversation_handles_rejection_before_confirmation(
+    monkeypatch, tmp_data_dir
+):
+    """A rejection pauses confirmation until new details are provided."""
+
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+
+    def fake_extract(text: str) -> str:
+        base = {
+            "type": "InvoiceContext",
+            "customer": {"name": "Hans"},
+            "service": {"description": "Malen", "materialIncluded": True},
+            "items": [],
+            "amount": {},
+        }
+
+        quantity = 2
+        if "3 stunde" in text.lower():
+            quantity = 3
+
+        base["items"].append(
+            {
+                "description": "Arbeitszeit Geselle",
+                "category": "labor",
+                "quantity": quantity,
+                "unit": "h",
+                "unit_price": 40,
+                "worker_role": "Geselle",
+            }
+        )
+        return json.dumps(base)
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+
+    send_calls: list[InvoiceContext] = []
+
+    def fake_send(invoice: InvoiceContext):
+        send_calls.append(invoice)
+        return {"ok": True}
+
+    monkeypatch.setattr(conversation, "send_to_billing_system", fake_send)
+    monkeypatch.setattr(
+        conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir)
+    )
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    session_id = "reject"
+
+    first = client.post(
+        "/conversation-text/",
+        data={
+            "session_id": session_id,
+            "text": "Bitte eine Rechnung für Hans über Malen mit 2 Stunden Geselle.",
+        },
+    )
+    assert first.status_code == 200
+    first_payload = first.json()
+    assert first_payload["done"] is False
+    assert "Soll ich" in first_payload["message"]
+
+    reject_resp = client.post(
+        "/conversation-text/",
+        data={"session_id": session_id, "text": "Nein"},
+    )
+    assert reject_resp.status_code == 200
+    reject_payload = reject_resp.json()
+    assert reject_payload["done"] is False
+    assert "Welche Angaben" in reject_payload["message"]
+    assert not send_calls
+
+    change_resp = client.post(
+        "/conversation-text/",
+        data={
+            "session_id": session_id,
+            "text": "Bitte ändere auf 3 Stunden Geselle.",
+        },
+    )
+    assert change_resp.status_code == 200
+    change_payload = change_resp.json()
+    assert change_payload["done"] is False
+    assert "Soll ich" in change_payload["message"]
+    assert not send_calls
+
+    confirm_resp = client.post(
+        "/conversation-text/",
+        data={"session_id": session_id, "text": "Ja bitte"},
+    )
+    assert confirm_resp.status_code == 200
+    confirm_payload = confirm_resp.json()
+    assert confirm_payload["done"] is True
+    assert "Rechnung" in confirm_payload["message"]
+    assert len(send_calls) == 1
+    assert session_id not in conversation.SESSIONS
 
 
 def test_conversation_extracts_hours_and_materials(monkeypatch, tmp_data_dir):
@@ -524,6 +652,8 @@ def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
     data = resp.json()
     assert data["done"] is False
     assert data.get("status") == "awaiting_confirmation"
+    assert data["done"] is False
+    assert "Soll ich" in data["message"]
 
     resp = client.post(
         "/conversation/",
