@@ -597,12 +597,17 @@ def _handle_conversation(
 
     session = _get_session_state(session_id)
     session_msgs = session.messages
+    previous_invoice_dump = (
+        session.invoice.model_dump(mode="json") if session.invoice else None
+    )
 
     awaiting_confirmation_response = False
+    confirmation_cleared = False
     if session.status == STATUS_AWAITING_CONFIRMATION:
         if _detect_rejection(transcript_part):
             session.status = STATUS_COLLECTING
             session.confirmation_message = None
+            confirmation_cleared = True
         elif _detect_confirmation(transcript_part):
             awaiting_confirmation_response = True
 
@@ -776,6 +781,8 @@ def _handle_conversation(
     if placeholder_notice and (labor_inferred or material_inferred):
         placeholder_notice = False
 
+    invoice_changed = invoice.model_dump(mode="json") != previous_invoice_dump
+
     session.invoice = invoice
     INVOICE_STATE[session_id] = invoice
 
@@ -887,6 +894,26 @@ def _handle_conversation(
             "transcript": full_transcript,
         }
 
+    if confirmation_cleared and not invoice_changed:
+        clarification = "Alles klar. Welche Angaben möchtest du ändern?"
+        session_msgs.append({"role": "assistant", "content": clarification})
+        session.status = STATUS_COLLECTING
+        session.confirmation_message = None
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
+        audio_b64 = base64.b64encode(text_to_speech(clarification)).decode("ascii")
+        return {
+            "done": False,
+            "message": clarification,
+            "audio": audio_b64,
+            "invoice": invoice.model_dump(mode="json"),
+            "log_dir": log_dir,
+            "pdf_path": pdf_path,
+            "pdf_url": pdf_url,
+            "transcript": full_transcript,
+        }
+
     customer_name = invoice.customer.get("name") or "den Kunden"
     total_value = invoice.amount.get("total") if invoice.amount else None
     if isinstance(total_value, (int, float)):
@@ -925,7 +952,12 @@ def _handle_conversation(
     session.status = STATUS_AWAITING_CONFIRMATION
     if session.confirmation_message != confirmation_message:
         session.confirmation_message = confirmation_message
-    session_msgs.append({"role": "assistant", "content": confirmation_message})
+    if (
+        not session_msgs
+        or session_msgs[-1].get("role") != "assistant"
+        or session_msgs[-1].get("content") != confirmation_message
+    ):
+        session_msgs.append({"role": "assistant", "content": confirmation_message})
 
     log_dir = store_interaction(audio_bytes, session_msgs, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
