@@ -242,11 +242,14 @@ def _material_counts_from_transcript(transcript: str) -> dict[str, float]:
 
 def _ensure_material_items_from_transcript(
     invoice: InvoiceContext, transcript: str
-) -> None:
-    """Ergänzt fehlende Materialpositionen aus einfachen Textmustern."""
+) -> bool:
+    """Ergänzt fehlende Materialpositionen aus einfachen Textmustern.
+
+    Gibt ``True`` zurück, wenn Angaben aus dem Transkript übernommen wurden.
+    """
 
     if not transcript:
-        return
+        return False
 
     existing = {
         item.description.casefold(): item
@@ -254,6 +257,8 @@ def _ensure_material_items_from_transcript(
         if item.category == "material"
     }
     counts = _material_counts_from_transcript(transcript)
+
+    changed = False
 
     for match in _MATERIAL_PRICE_PATTERN.finditer(transcript):
         raw_desc, price_str = match.groups()
@@ -278,10 +283,13 @@ def _ensure_material_items_from_transcript(
         if item:
             if not item.quantity:
                 item.quantity = quantity
+                changed = True
             if not item.unit_price:
                 item.unit_price = price
+                changed = True
             if not item.unit:
                 item.unit = "Stk"
+                changed = True
         else:
             new_item = InvoiceItem(
                 description=desc.title(),
@@ -292,19 +300,39 @@ def _ensure_material_items_from_transcript(
             )
             invoice.items.append(new_item)
             existing[key] = new_item
+            changed = True
 
     if any(item.category == "material" for item in invoice.items):
         invoice.service.setdefault("materialIncluded", True)
 
+    if changed:
+        invoice.items = [
+            item
+            for item in invoice.items
+            if not (
+                item.category == "material"
+                and item.description.casefold() in {"material", "materialkosten"}
+                and (item.quantity or 0.0) == 0.0
+                and (item.unit_price or 0.0) == 0.0
+            )
+        ]
+
+    return changed
+
 
 def _ensure_labor_items_from_transcript(
     invoice: InvoiceContext, transcript: str
-) -> None:
-    """Legt Arbeitspositionen anhand erkannter Stunden an."""
+) -> bool:
+    """Legt Arbeitspositionen anhand erkannter Stunden an.
+
+    Gibt ``True`` zurück, wenn Angaben aus dem Transkript übernommen wurden.
+    """
 
     hours = _labor_hours_from_transcript(transcript)
     if not hours:
-        return
+        return False
+
+    changed = False
 
     for item in invoice.items:
         if item.category == "labor" and item.worker_role:
@@ -312,6 +340,7 @@ def _ensure_labor_items_from_transcript(
             for pattern, label in _LABOR_ROLE_LABELS.items():
                 if pattern in key and label in hours and not item.quantity:
                     item.quantity = hours[label]
+                    changed = True
 
     for role, qty in hours.items():
         if qty <= 0:
@@ -327,8 +356,10 @@ def _ensure_labor_items_from_transcript(
         if existing:
             if not existing.quantity:
                 existing.quantity = qty
+                changed = True
             if not existing.unit:
                 existing.unit = "h"
+                changed = True
             continue
 
         invoice.items.append(
@@ -341,6 +372,9 @@ def _ensure_labor_items_from_transcript(
                 worker_role=role,
             )
         )
+        changed = True
+
+    return changed
 
 def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> InvoiceContext:
     """Merge ``new`` invoice data into ``existing`` without overwriting user input.
@@ -622,8 +656,8 @@ def _handle_conversation(
         elif len(detected_roles) > 1:
             ambiguous_roles = True
 
-    _ensure_labor_items_from_transcript(invoice, full_transcript)
-    _ensure_material_items_from_transcript(invoice, full_transcript)
+    labor_inferred = _ensure_labor_items_from_transcript(invoice, full_transcript)
+    material_inferred = _ensure_material_items_from_transcript(invoice, full_transcript)
 
     # Platzhalter und geschätzte Arbeitszeit ergänzen.
     travel_item = next((i for i in invoice.items if i.category == "travel"), None)
@@ -652,6 +686,9 @@ def _handle_conversation(
         )
 
     apply_pricing(invoice)
+
+    if placeholder_notice and (labor_inferred or material_inferred):
+        placeholder_notice = False
 
     INVOICE_STATE[session_id] = invoice
 
