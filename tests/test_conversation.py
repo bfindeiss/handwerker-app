@@ -17,7 +17,7 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
 
-    transcripts = iter(["", "Hans Malen"])
+    transcripts = iter(["", "Hans Malen", "Ja bitte"])
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: next(transcripts))
 
     def fake_extract(text):
@@ -60,13 +60,26 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["done"] is True
+    assert data["done"] is False
+    assert "Soll ich" in data["message"]
     invoice = data["invoice"]
     assert invoice["customer"]["name"] == "Unbekannter Kunde"
     assert any(item["category"] == "labor" for item in invoice["items"])
     assert invoice["amount"]["total"] == 0.0
     assert "pdf_url" in data
     assert "message" in data
+
+    resp = client.post(
+        "/conversation/",
+        data={"session_id": session_id},
+        files={"file": ("audio.wav", b"data")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert data["invoice"]["customer"]["name"] == "Hans"
+    assert data["invoice"]["amount"]["total"] == 47.6
+    assert "Soll ich" in data["message"]
 
     resp = client.post(
         "/conversation/",
@@ -164,7 +177,8 @@ def test_conversation_parse_error_keeps_state(monkeypatch, tmp_data_dir):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["done"] is True
+    assert data["done"] is False
+    assert "Soll ich" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["invoice"]["service"]["description"] == "Malen"
     assert session_id in conversation.INVOICE_STATE
@@ -260,12 +274,21 @@ def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["done"] is True
+    assert data["done"] is False
+    assert "Soll ich" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Unbekannter Kunde"
     assert (
         data["invoice"]["service"]["description"]
         == "Dienstleistung nicht näher beschrieben"
     )
+
+    confirm = client.post(
+        "/conversation-text/",
+        data={"session_id": "s", "text": "ja"},
+    )
+    assert confirm.status_code == 200
+    confirmation_payload = confirm.json()
+    assert confirmation_payload["done"] is True
 
 
 def test_conversation_extracts_hours_and_materials(monkeypatch, tmp_data_dir):
@@ -391,7 +414,8 @@ def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["done"] is True
+    assert data["done"] is False
+    assert "Soll ich" in data["message"]
 
     resp = client.post(
         "/conversation/",

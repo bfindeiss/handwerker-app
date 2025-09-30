@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List
 
@@ -25,10 +26,84 @@ from app.tts import text_to_speech
 
 router = APIRouter()
 
+
+@dataclass
+class SessionState:
+    """Hält alle kontextbezogenen Informationen einer Sitzung."""
+
+    messages: List[Dict[str, str]] = field(default_factory=list)
+    invoice: InvoiceContext | None = None
+    status: str = "collecting"
+    confirmation_message: str | None = None
+
+
 # Zwischenspeicher für laufende Konversationen
-SESSIONS: Dict[str, List[Dict[str, str]]] = {}
+SESSIONS: Dict[str, SessionState] = {}
 # Zuletzt erfolgreicher Rechnungszustand pro Session
 INVOICE_STATE: Dict[str, InvoiceContext] = {}
+
+STATUS_COLLECTING = "collecting"
+STATUS_AWAITING_CONFIRMATION = "awaiting_confirmation"
+
+
+_CONFIRMATION_PATTERNS = [
+    r"\bja\b",
+    r"\bokay\b",
+    r"\bok\b",
+    r"\bpasst\b",
+    r"\bbestätig\w*",
+    r"\bin ordnung\b",
+    r"\b(klingt|hört sich) gut\b",
+    r"\bmach(?:e)? das\b",
+]
+
+_REJECTION_PATTERNS = [
+    r"\bnein\b",
+    r"\bnoch nicht\b",
+    r"\bstop+p?\b",
+    r"\babbrechen\b",
+    r"\bnicht\s+bestätig\w*",
+    r"\bändern\b",
+]
+
+
+def _get_session_state(session_id: str) -> SessionState:
+    """Gibt den Sitzungszustand zurück und legt ihn bei Bedarf an."""
+
+    return SESSIONS.setdefault(session_id, SessionState())
+
+
+def _user_transcript(session: SessionState | None) -> str:
+    """Fasst alle Nutzeraussagen der Sitzung zusammen."""
+
+    if not session:
+        return ""
+    return " ".join(
+        msg.get("content", "")
+        for msg in session.messages
+        if msg.get("role") == "user"
+    )
+
+
+def _detect_confirmation(transcript: str) -> bool:
+    """Erkennt einfache Bestätigungssignale im Text."""
+
+    text = (transcript or "").casefold()
+    return any(re.search(pattern, text) for pattern in _CONFIRMATION_PATTERNS)
+
+
+def _detect_rejection(transcript: str) -> bool:
+    """Erkennt Ablehnungssignale im Text."""
+
+    text = (transcript or "").casefold()
+    return any(re.search(pattern, text) for pattern in _REJECTION_PATTERNS)
+
+
+def _clear_session(session_id: str) -> None:
+    """Entfernt alle gespeicherten Daten zu einer Sitzung."""
+
+    SESSIONS.pop(session_id, None)
+    INVOICE_STATE.pop(session_id, None)
 
 # Pfad zur Konfigurationsdatei
 ENV_PATH = Path(".env")
@@ -520,6 +595,17 @@ def _handle_conversation(
 ) -> dict:
     """Gemeinsame Logik für Sprach- und Texteingaben."""
 
+    session = _get_session_state(session_id)
+    session_msgs = session.messages
+
+    awaiting_confirmation_response = False
+    if session.status == STATUS_AWAITING_CONFIRMATION:
+        if _detect_rejection(transcript_part):
+            session.status = STATUS_COLLECTING
+            session.confirmation_message = None
+        elif _detect_confirmation(transcript_part):
+            awaiting_confirmation_response = True
+
     # Prüft auf Konfigurationsbefehle wie "Speichere meinen Firmennamen".
     m = re.search(
         r"speichere meinen firmennamen(?: (?P<name>.+))?",
@@ -538,19 +624,18 @@ def _handle_conversation(
             "done": False,
             "message": message,
             "audio": audio_b64,
-            "transcript": " ".join(
-                m["content"] for m in SESSIONS.get(session_id, [])
-            ),
+            "transcript": " ".join(m["content"] for m in session_msgs),
         }
 
     # Prüft auf Befehle wie "Position X löschen".
     m = re.search(r"position\s+(\d+)\s+löschen", transcript_part, re.IGNORECASE)
     if m:
         idx = int(m.group(1))
-        invoice = INVOICE_STATE.get(session_id)
+        invoice = session.invoice or INVOICE_STATE.get(session_id)
         if invoice and 1 <= idx <= len(invoice.items):
             del invoice.items[idx - 1]
             apply_pricing(invoice)
+            session.invoice = invoice
             INVOICE_STATE[session_id] = invoice
             message = f"Position {idx} gelöscht."
         else:
@@ -559,16 +644,17 @@ def _handle_conversation(
         if invoice and not _user_set_customer_name(invoice.customer.get("name"), transcript_part):
             invoice.customer.pop("name", None)
             fill_default_fields(invoice)
+        session.status = STATUS_COLLECTING
+        session.confirmation_message = None
         return {
             "done": False,
             "message": message,
             "audio": audio_b64,
-            "transcript": SESSIONS.get(session_id, ""),
+            "transcript": _user_transcript(session),
             "invoice": invoice.model_dump(mode="json") if invoice else None,
         }
 
     # Neues Transkript zur Session hinzufügen.
-    session_msgs = SESSIONS.setdefault(session_id, [])
     session_msgs.append({"role": "user", "content": transcript_part})
     full_transcript = " ".join(
         m["content"] for m in session_msgs if m["role"] == "user"
@@ -584,7 +670,7 @@ def _handle_conversation(
         distance = float(m_distance.group(1).replace(",", "."))
 
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
-    had_state = session_id in INVOICE_STATE
+    had_state = session.invoice is not None
     invoice_json = extract_invoice_context(full_transcript)
     parse_error = False
     placeholder_notice = False
@@ -594,14 +680,14 @@ def _handle_conversation(
             parsed.customer.get("name"), full_transcript
         ):
             parsed.customer.pop("name", None)
-        if had_state:
-            invoice = merge_invoice_data(INVOICE_STATE[session_id], parsed)
+        if had_state and session.invoice is not None:
+            invoice = merge_invoice_data(session.invoice, parsed)
         else:
             invoice = parsed
     except ValueError:
         parse_error = True
-        if had_state:
-            invoice = INVOICE_STATE[session_id]
+        if had_state and session.invoice is not None:
+            invoice = session.invoice
         else:
             invoice = InvoiceContext(
                 type="InvoiceContext",
@@ -690,6 +776,7 @@ def _handle_conversation(
     if placeholder_notice and (labor_inferred or material_inferred):
         placeholder_notice = False
 
+    session.invoice = invoice
     INVOICE_STATE[session_id] = invoice
 
     if ambiguous_roles:
@@ -705,6 +792,8 @@ def _handle_conversation(
         )
         if not already_asked:
             session_msgs.append({"role": "assistant", "content": question})
+        session.status = STATUS_COLLECTING
+        session.confirmation_message = None
         log_dir = store_interaction(audio_bytes, session_msgs, invoice)
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
@@ -731,6 +820,8 @@ def _handle_conversation(
         else:
             question = "Welche Positionen wurden abgerechnet?"
         session_msgs.append({"role": "assistant", "content": question})
+        session.status = STATUS_COLLECTING
+        session.confirmation_message = None
         log_dir = store_interaction(audio_bytes, session_msgs, invoice)
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
@@ -747,7 +838,7 @@ def _handle_conversation(
         }
 
     if missing:
-        invoice = INVOICE_STATE.get(session_id, invoice)
+        invoice = session.invoice or invoice
         question_map = {
             "customer.name": "Wie heißt der Kunde?",
             "service.description": "Welche Dienstleistung wurde erbracht?",
@@ -756,6 +847,8 @@ def _handle_conversation(
         question_lines = [question_map.get(f, f) for f in missing]
         question = "\n".join(question_lines)
         session_msgs.append({"role": "assistant", "content": question})
+        session.status = STATUS_COLLECTING
+        session.confirmation_message = None
         log_dir = store_interaction(audio_bytes, session_msgs, invoice)
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
@@ -777,6 +870,8 @@ def _handle_conversation(
             "eingesetzt. Bitte beschreibe die tatsächlichen Positionen."
         )
         session_msgs.append({"role": "assistant", "content": message})
+        session.status = STATUS_COLLECTING
+        session.confirmation_message = None
         log_dir = store_interaction(audio_bytes, session_msgs, invoice)
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
@@ -792,22 +887,53 @@ def _handle_conversation(
             "transcript": full_transcript,
         }
 
-    # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
-    send_to_billing_system(invoice)
-    message = (
-        "Vorläufige Rechnung für "
-        f"{invoice.customer['name']} über {invoice.amount['total']} Euro erstellt."
+    customer_name = invoice.customer.get("name") or "den Kunden"
+    total_value = invoice.amount.get("total") if invoice.amount else None
+    if isinstance(total_value, (int, float)):
+        total_str = f"{total_value:.2f}"
+    else:
+        total_str = str(total_value) if total_value is not None else "0.00"
+
+    confirmation_message = (
+        "Ich habe eine Rechnung für "
+        f"{customer_name} über {total_str} Euro vorbereitet. Soll ich sie erstellen?"
     )
-    if placeholder_notice:
-        message = "Hinweis: Platzhalter verwendet. " + message
-    session_msgs.append({"role": "assistant", "content": message})
+
+    if session.status == STATUS_AWAITING_CONFIRMATION and awaiting_confirmation_response:
+        message = (
+            "Vorläufige Rechnung für "
+            f"{customer_name} über {total_str} Euro erstellt."
+        )
+        session_msgs.append({"role": "assistant", "content": message})
+        log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+        pdf_path = str(Path(log_dir) / "invoice.pdf")
+        pdf_url = "/" + pdf_path.replace("\\", "/")
+        audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+        send_to_billing_system(invoice)
+        _clear_session(session_id)
+        return {
+            "done": True,
+            "message": message,
+            "audio": audio_b64,
+            "invoice": invoice.model_dump(mode="json"),
+            "log_dir": log_dir,
+            "pdf_path": pdf_path,
+            "pdf_url": pdf_url,
+            "transcript": full_transcript,
+        }
+
+    session.status = STATUS_AWAITING_CONFIRMATION
+    if session.confirmation_message != confirmation_message:
+        session.confirmation_message = confirmation_message
+    session_msgs.append({"role": "assistant", "content": confirmation_message})
+
     log_dir = store_interaction(audio_bytes, session_msgs, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
     pdf_url = "/" + pdf_path.replace("\\", "/")
-    audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+    audio_b64 = base64.b64encode(text_to_speech(confirmation_message)).decode("ascii")
     return {
-        "done": True,
-        "message": message,
+        "done": False,
+        "message": confirmation_message,
         "audio": audio_b64,
         "invoice": invoice.model_dump(mode="json"),
         "log_dir": log_dir,
