@@ -21,6 +21,7 @@ from app.models import (
 from app.persistence import store_interaction
 from app.pricing import apply_pricing
 from app.service_estimations import estimate_labor_item
+from app.summaries import build_invoice_summary
 from app.stt import transcribe_audio
 from app.tts import text_to_speech
 
@@ -38,9 +39,11 @@ class SessionState:
 
 
 # Zwischenspeicher für laufende Konversationen
-SESSIONS: Dict[str, SessionState] = {}
+SESSIONS: Dict[str, List[Dict[str, str]]] = {}
 # Zuletzt erfolgreicher Rechnungszustand pro Session
 INVOICE_STATE: Dict[str, InvoiceContext] = {}
+# Fortschritt der jeweiligen Session (z. B. "collecting", "summarizing")
+SESSION_STATUS: Dict[str, str] = {}
 
 STATUS_COLLECTING = "collecting"
 STATUS_AWAITING_CONFIRMATION = "awaiting_confirmation"
@@ -158,6 +161,20 @@ _MATERIAL_PRICE_PATTERN = re.compile(
 
 _MATERIAL_COUNT_PATTERN = re.compile(
     r"(\d+(?:[.,]\d+)?)\s*(?:x\s*)?([a-zäöüß][a-zäöüß-]*)",
+    re.IGNORECASE,
+)
+
+_ITEM_CORRECTION_PATTERN = re.compile(
+    r"position\s+(?P<index>\d+)\s+(?P<field>menge|preis|beschreibung)"
+    r"\s*(?:ist|auf|zu|soll(?:\s+sein)?|beträgt|=)?\s*(?P<value>.+)",
+    re.IGNORECASE,
+)
+_CUSTOMER_CORRECTION_PATTERN = re.compile(
+    r"kunde\s+(?:ist|heißt)\s+(?P<value>.+)",
+    re.IGNORECASE,
+)
+_SERVICE_CORRECTION_PATTERN = re.compile(
+    r"dienstleistung\s+(?:ist|lautet)\s+(?P<value>.+)",
     re.IGNORECASE,
 )
 
@@ -566,6 +583,102 @@ def fill_default_fields(invoice: InvoiceContext) -> None:
         invoice.service["description"] = "Dienstleistung nicht näher beschrieben"
 
 
+def _parse_number(value: str) -> float | None:
+    """Extrahiert eine Fließkommazahl aus einem Textfragment."""
+
+    if not value:
+        return None
+
+    compact = value.replace(" ", "").strip()
+    match = re.search(r"\d+(?:[.,]\d+)?", compact)
+    if not match:
+        return None
+
+    number = match.group(0)
+    normalized = number.replace(".", "").replace(",", ".")
+    try:
+        return float(normalized)
+    except ValueError:  # pragma: no cover - defensive
+        return None
+
+
+def _clean_command_value(value: str) -> str:
+    """Bereinigt extrahierte Werte aus Korrekturkommandos."""
+
+    if not value:
+        return ""
+
+    text = value.strip()
+    for sep in (". ", "! ", "? ", "; "):
+        idx = text.find(sep)
+        if idx != -1:
+            text = text[:idx]
+            break
+    text = text.strip()
+    return text.rstrip(".?!;").strip()
+
+
+def update_item_field(
+    invoice: InvoiceContext, index: int, field: str, value: str
+) -> tuple[bool, str]:
+    """Aktualisiert Menge, Preis oder Beschreibung einer Rechnungsposition."""
+
+    if not 1 <= index <= len(invoice.items):
+        return False, f"Position {index} konnte ich nicht finden."
+
+    item = invoice.items[index - 1]
+    field_key = field.casefold()
+
+    if field_key == "menge":
+        number = _parse_number(value)
+        if number is None:
+            return False, f"Die Menge für Position {index} konnte ich nicht verstehen."
+        item.quantity = number
+        message = f"Menge in Position {index} ist jetzt {number:g}"
+    elif field_key == "preis":
+        number = _parse_number(value)
+        if number is None:
+            return False, f"Den Preis für Position {index} konnte ich nicht verstehen."
+        item.unit_price = number
+        message = f"Preis in Position {index} ist jetzt {number:g} Euro"
+    elif field_key == "beschreibung":
+        text = value.strip()
+        if not text:
+            return False, "Bitte gib eine Beschreibung an."
+        item.description = text
+        message = f"Beschreibung in Position {index} aktualisiert"
+    else:  # pragma: no cover - defensive
+        return False, f"Feld '{field}' kann ich nicht anpassen."
+
+    apply_pricing(invoice)
+    fill_default_fields(invoice)
+    return True, message
+
+
+def update_customer_name(invoice: InvoiceContext, value: str) -> tuple[bool, str]:
+    """Aktualisiert den Kundennamen."""
+
+    name = value.strip()
+    if not name:
+        return False, "Bitte nenne einen Kundennamen."
+    invoice.customer["name"] = name
+    apply_pricing(invoice)
+    fill_default_fields(invoice)
+    return True, f"Kunde ist jetzt {name}"
+
+
+def update_service_description(invoice: InvoiceContext, value: str) -> tuple[bool, str]:
+    """Aktualisiert die Dienstleistungsbeschreibung."""
+
+    description = value.strip()
+    if not description:
+        return False, "Bitte nenne eine Dienstleistung."
+    invoice.service["description"] = description
+    apply_pricing(invoice)
+    fill_default_fields(invoice)
+    return True, f"Dienstleistung lautet jetzt {description}"
+
+
 def _normalize_worker_role(role: str | None) -> str | None:
     """Bringt Rollenbezeichnungen auf eine einheitliche Schreibweise."""
 
@@ -590,6 +703,85 @@ def _roles_from_transcript(transcript: str) -> set[str]:
     return roles
 
 
+def _handle_direct_corrections(session_id: str, transcript_part: str) -> dict | None:
+    """Verarbeitet erkannte Korrekturbefehle ohne LLM-Roundtrip."""
+
+    invoice = INVOICE_STATE.get(session_id)
+    if not invoice:
+        return None
+
+    text = transcript_part or ""
+    handled = False
+    updated = False
+    feedback: list[str] = []
+
+    for match in _ITEM_CORRECTION_PATTERN.finditer(text):
+        handled = True
+        idx = int(match.group("index"))
+        field = match.group("field")
+        raw_value = _clean_command_value(match.group("value"))
+        success, message = update_item_field(invoice, idx, field, raw_value)
+        feedback.append(message)
+        if success:
+            updated = True
+
+    customer_match = _CUSTOMER_CORRECTION_PATTERN.search(text)
+    if customer_match:
+        handled = True
+        raw = _clean_command_value(customer_match.group("value"))
+        success, message = update_customer_name(invoice, raw)
+        feedback.append(message)
+        if success:
+            updated = True
+
+    service_match = _SERVICE_CORRECTION_PATTERN.search(text)
+    if service_match:
+        handled = True
+        raw = _clean_command_value(service_match.group("value"))
+        success, message = update_service_description(invoice, raw)
+        feedback.append(message)
+        if success:
+            updated = True
+
+    if not handled:
+        return None
+
+    INVOICE_STATE[session_id] = invoice
+
+    def _ensure_period(message: str) -> str:
+        trimmed = message.strip()
+        if not trimmed:
+            return ""
+        if trimmed[-1] not in ".!?":
+            return trimmed + "."
+        return trimmed
+
+    spoken = " ".join(filter(None, (_ensure_period(msg) for msg in feedback)))
+    if updated:
+        SESSION_STATUS[session_id] = "collecting"
+        spoken = (spoken + " Ich fasse gleich neu zusammen.").strip()
+    else:
+        SESSION_STATUS.setdefault(session_id, "collecting")
+
+    session_msgs = SESSIONS.setdefault(session_id, [])
+    session_msgs.append({"role": "user", "content": transcript_part})
+
+    audio_b64 = base64.b64encode(text_to_speech(spoken)).decode("ascii")
+
+    current_transcript = " ".join(
+        m["content"] for m in session_msgs if m.get("role") == "user"
+    )
+
+    return {
+        "done": False,
+        "message": spoken,
+        "audio": audio_b64,
+        "invoice": invoice.model_dump(mode="json"),
+        "transcript": current_transcript,
+        "session_status": SESSION_STATUS.get(session_id, "collecting"),
+    }
+
+
 def _handle_conversation(
     session_id: str, transcript_part: str, audio_bytes: bytes
 ) -> dict:
@@ -610,6 +802,8 @@ def _handle_conversation(
             confirmation_cleared = True
         elif _detect_confirmation(transcript_part):
             awaiting_confirmation_response = True
+
+    SESSION_STATUS.setdefault(session_id, "collecting")
 
     # Prüft auf Konfigurationsbefehle wie "Speichere meinen Firmennamen".
     m = re.search(
@@ -643,6 +837,7 @@ def _handle_conversation(
             session.invoice = invoice
             INVOICE_STATE[session_id] = invoice
             message = f"Position {idx} gelöscht."
+            SESSION_STATUS[session_id] = "collecting"
         else:
             message = f"Position {idx} nicht gefunden."
         audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
@@ -655,9 +850,14 @@ def _handle_conversation(
             "done": False,
             "message": message,
             "audio": audio_b64,
-            "transcript": _user_transcript(session),
+            "transcript": SESSIONS.get(session_id, ""),
             "invoice": invoice.model_dump(mode="json") if invoice else None,
+            "session_status": SESSION_STATUS.get(session_id, "collecting"),
         }
+
+    correction = _handle_direct_corrections(session_id, transcript_part)
+    if correction:
+        return correction
 
     # Neues Transkript zur Session hinzufügen.
     session_msgs.append({"role": "user", "content": transcript_part})
@@ -781,9 +981,6 @@ def _handle_conversation(
     if placeholder_notice and (labor_inferred or material_inferred):
         placeholder_notice = False
 
-    invoice_changed = invoice.model_dump(mode="json") != previous_invoice_dump
-
-    session.invoice = invoice
     INVOICE_STATE[session_id] = invoice
 
     if ambiguous_roles:
@@ -966,6 +1163,22 @@ def _handle_conversation(
     return {
         "done": False,
         "message": confirmation_message,
+    # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
+    summary = build_invoice_summary(invoice)
+    send_to_billing_system(invoice)
+    message = (
+        f"{summary} "
+        "Ich habe die vorläufige Rechnung erstellt und an das Abrechnungssystem übergeben."
+    )
+    session_msgs.append({"role": "assistant", "content": message})
+    log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+    pdf_path = str(Path(log_dir) / "invoice.pdf")
+    pdf_url = "/" + pdf_path.replace("\\", "/")
+    audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+    SESSION_STATUS[session_id] = "completed"
+    return {
+        "done": True,
+        "message": message,
         "audio": audio_b64,
         "invoice": invoice.model_dump(mode="json"),
         "log_dir": log_dir,
