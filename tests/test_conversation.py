@@ -16,6 +16,7 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     """Generates invoice summary first and finalizes after confirmation."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
     conversation.PENDING_CONFIRMATION.clear()
 
     transcripts = iter(["Hans Malen", "Ja, passt."])
@@ -67,6 +68,7 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["invoice"]["amount"]["total"] == 47.6
     assert "pdf_url" in data
+    assert "message" in data
 
     resp = client.post(
         "/conversation/",
@@ -80,6 +82,8 @@ def test_conversation_provisional_invoice(monkeypatch, tmp_data_dir):
     assert "Rechnung bestätigt" in data["message"]
     assert data["invoice"]["customer"]["name"] == "Hans"
     assert data["invoice"]["amount"]["total"] == 47.6
+    assert "vorläufige rechnung" in data["message"].lower()
+    assert "47,60 euro" in data["message"].lower()
 
 
 def test_conversation_correction_flow(monkeypatch, tmp_data_dir):
@@ -163,6 +167,7 @@ def test_conversation_parse_error(monkeypatch, tmp_data_dir):
     """Even on parse errors a provisional invoice is returned."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
     conversation.PENDING_CONFIRMATION.clear()
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "kaputt 7 km")
     monkeypatch.setattr(conversation, "extract_invoice_context", lambda t: "invalid")
@@ -196,6 +201,7 @@ def test_conversation_parse_error_keeps_state(monkeypatch, tmp_data_dir):
     """Parse-Fehler sollen vorhandene Rechnungsdaten nicht verwerfen."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
     conversation.PENDING_CONFIRMATION.clear()
 
     transcripts = iter(["Hans Malen", "Nur eine Stunde"])
@@ -266,6 +272,7 @@ def test_conversation_store_company_name(monkeypatch, tmp_path):
     """Recognizes command to store company name in .env."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
     env_file = tmp_path / ".env"
     monkeypatch.setattr(conversation, "ENV_PATH", env_file)
     monkeypatch.setattr(
@@ -295,6 +302,7 @@ def test_conversation_defaults(monkeypatch, tmp_data_dir):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.PENDING_CONFIRMATION.clear()
+    conversation.SESSION_STATUS.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Malen 100")
     monkeypatch.setattr(
@@ -338,6 +346,7 @@ def test_conversation_estimates_labor_item(monkeypatch, tmp_data_dir):
     """Missing labor positions should be estimated automatically."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
     conversation.PENDING_CONFIRMATION.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "Hans Dusche")
@@ -391,6 +400,7 @@ def test_conversation_extracts_hours_and_materials(monkeypatch, tmp_data_dir):
 
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
     conversation.PENDING_CONFIRMATION.clear()
 
     transcript = (
@@ -465,6 +475,7 @@ def test_conversation_keeps_context_on_correction(monkeypatch, tmp_data_dir):
     """Corrections with invalid parse keep prior context."""
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
     conversation.PENDING_CONFIRMATION.clear()
 
     transcripts = iter(["Huber Fenster", "Nur eine Stunde"])
@@ -532,6 +543,7 @@ def test_conversation_ignores_auto_customer_name(monkeypatch, tmp_data_dir):
 
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
     conversation.PENDING_CONFIRMATION.clear()
 
     monkeypatch.setattr(conversation, "transcribe_audio", lambda b: "nur text")
@@ -566,6 +578,7 @@ def test_conversation_delete_position(monkeypatch):
     conversation.SESSIONS.clear()
     conversation.INVOICE_STATE.clear()
     conversation.PENDING_CONFIRMATION.clear()
+    conversation.SESSION_STATUS.clear()
 
     session_id = "del"
     invoice = InvoiceContext(
@@ -616,3 +629,109 @@ def test_conversation_delete_position(monkeypatch):
     assert len(invoice.items) == 1
     assert invoice.items[0].description == "Neu"
     assert invoice.amount["total"] == pytest.approx(11.9, abs=0.01)
+
+
+
+def test_conversation_direct_price_correction(monkeypatch):
+    """Recognizes corrections like 'Position 1 Preis ...'."""
+
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
+
+    session_id = "corr-price"
+    invoice = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": "Kunde"},
+        service={"description": "Service"},
+        items=[
+            InvoiceItem(
+                description="Arbeitszeit",
+                category="labor",
+                quantity=1.0,
+                unit="h",
+                unit_price=40.0,
+                worker_role="Geselle",
+            )
+        ],
+        amount={},
+    )
+    apply_pricing(invoice)
+    conversation.INVOICE_STATE[session_id] = invoice
+
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+    monkeypatch.setattr(
+        conversation,
+        "extract_invoice_context",
+        lambda t: pytest.fail("LLM merge should not run for direct corrections"),
+    )
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation-text/",
+        data={"session_id": session_id, "text": "Position 1 Preis ist 150 Euro"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert "preis" in data["message"].lower()
+    assert "zusammen" in data["message"].lower()
+    assert data["invoice"]["items"][0]["unit_price"] == 150.0
+    assert data["session_status"] == "collecting"
+
+    invoice_state = conversation.INVOICE_STATE[session_id]
+    assert invoice_state.items[0].unit_price == 150.0
+    assert conversation.SESSION_STATUS[session_id] == "collecting"
+
+
+def test_conversation_direct_customer_correction(monkeypatch):
+    """Updates customer name via explicit correction command."""
+
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
+
+    session_id = "corr-customer"
+    invoice = InvoiceContext(
+        type="InvoiceContext",
+        customer={"name": ""},
+        service={"description": "Service"},
+        items=[
+            InvoiceItem(
+                description="Arbeitszeit",
+                category="labor",
+                quantity=1.0,
+                unit="h",
+                unit_price=40.0,
+                worker_role="Geselle",
+            )
+        ],
+        amount={},
+    )
+    apply_pricing(invoice)
+    conversation.INVOICE_STATE[session_id] = invoice
+
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+    monkeypatch.setattr(
+        conversation,
+        "extract_invoice_context",
+        lambda t: pytest.fail("LLM merge should not run for direct corrections"),
+    )
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation-text/",
+        data={"session_id": session_id, "text": "Kunde ist Familie Müller."},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["done"] is False
+    assert "kunde ist" in data["message"].lower()
+    assert data["invoice"]["customer"]["name"] == "Familie Müller"
+    assert data["session_status"] == "collecting"
+
+    invoice_state = conversation.INVOICE_STATE[session_id]
+    assert invoice_state.customer["name"] == "Familie Müller"
+    assert conversation.SESSION_STATUS[session_id] == "collecting"
