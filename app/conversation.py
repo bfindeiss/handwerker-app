@@ -32,6 +32,8 @@ SESSIONS: Dict[str, List[Dict[str, str]]] = {}
 INVOICE_STATE: Dict[str, InvoiceContext] = {}
 # Fortschritt der jeweiligen Session (z. B. "collecting", "summarizing")
 SESSION_STATUS: Dict[str, str] = {}
+# Noch nicht bestätigte Rechnungsentwürfe
+PENDING_CONFIRMATION: Dict[str, Dict[str, object]] = {}
 
 # Pfad zur Konfigurationsdatei
 ENV_PATH = Path(".env")
@@ -393,7 +395,11 @@ def _ensure_labor_items_from_transcript(
 
     return changed
 
-def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> InvoiceContext:
+def merge_invoice_data(
+    existing: InvoiceContext,
+    new: InvoiceContext,
+    allow_overwrite: bool = False,
+) -> InvoiceContext:
     """Merge ``new`` invoice data into ``existing`` without overwriting user input.
 
     Bereits gesetzte Werte im bestehenden Rechnungszustand bleiben erhalten.
@@ -463,7 +469,14 @@ def merge_invoice_data(existing: InvoiceContext, new: InvoiceContext) -> Invoice
 
         existing_item = item_map.get(key)
         if existing_item:
-            if service_placeholder or not existing_item.unit_price:
+            if allow_overwrite:
+                if item.quantity is not None:
+                    existing_item.quantity = item.quantity
+                if item.unit_price is not None:
+                    existing_item.unit_price = item.unit_price
+                if item.unit:
+                    existing_item.unit = item.unit
+            elif service_placeholder or not existing_item.unit_price:
                 if item.quantity:
                     existing_item.quantity = item.quantity
                 if item.unit_price:
@@ -707,6 +720,62 @@ def _handle_direct_corrections(session_id: str, transcript_part: str) -> dict | 
     )
 
 
+def _build_invoice_summary(
+    invoice: InvoiceContext, placeholder_notice: bool = False
+) -> str:
+    """Erstellt eine kurze Zusammenfassung der Rechnungsdaten."""
+
+    customer = invoice.customer.get("name") or "Unbekannter Kunde"
+    service = invoice.service.get("description") or "Ohne Beschreibung"
+    currency = invoice.amount.get("currency", "EUR")
+    total = invoice.amount.get("total", 0.0)
+    item_lines = []
+    for idx, item in enumerate(invoice.items, start=1):
+        unit = item.unit or ""
+        unit = f" {unit}" if unit else ""
+        price = f" zu {item.unit_price:.2f} EUR" if item.unit_price else ""
+        quantity = f"{item.quantity:g}{unit}" if item.quantity is not None else "-"
+        role = f" ({item.worker_role})" if item.worker_role else ""
+        item_lines.append(
+            f"{idx}. {item.description}{role}: {quantity}{price}"
+        )
+
+    items_text = "\n".join(item_lines) if item_lines else "Keine Positionen erfasst."
+    summary_lines = [
+        "Bitte bestätigen Sie die folgenden Rechnungsdaten:",
+        f"Kunde: {customer}",
+        f"Leistung: {service}",
+        "Positionen:",
+        items_text,
+        f"Gesamtbetrag: {total:.2f} {currency}",
+    ]
+    if placeholder_notice:
+        summary_lines.append(
+            "Hinweis: Teile der Rechnung basieren noch auf Platzhaltern."
+        )
+    return "\n".join(summary_lines)
+
+
+def _is_confirmation(text: str) -> bool:
+    """Erkennt einfache Bestätigungen im Nutzereingang."""
+
+    if not text:
+        return False
+
+    lowered = text.casefold()
+    confirmation_keywords = {
+        "ja",
+        "passt",
+        "in ordnung",
+        "bestätige",
+        "bestätigt",
+        "klingt gut",
+        "genau so",
+        "alles klar",
+    }
+    return any(keyword in lowered for keyword in confirmation_keywords)
+
+
 def _handle_conversation(
     session_id: str, transcript_part: str, audio_bytes: bytes
 ) -> dict:
@@ -774,6 +843,40 @@ def _handle_conversation(
         m["content"] for m in session_msgs if m["role"] == "user"
     )
 
+    overwrite_existing = False
+    pending = PENDING_CONFIRMATION.get(session_id)
+    if pending:
+        if _is_confirmation(transcript_part):
+            invoice = pending["invoice"]
+            summary = pending["summary"]
+            send_to_billing_system(invoice)
+            message = (
+                "Rechnung bestätigt und finalisiert. "
+                f"Gesamtbetrag: {invoice.amount.get('total', 0.0)} Euro."
+            )
+            session_msgs.append({"role": "assistant", "content": message})
+            log_dir = store_interaction(audio_bytes, session_msgs, invoice)
+            pdf_path = str(Path(log_dir) / "invoice.pdf")
+            pdf_url = "/" + pdf_path.replace("\\", "/")
+            audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
+            PENDING_CONFIRMATION.pop(session_id, None)
+            return {
+                "done": True,
+                "message": message,
+                "summary": summary,
+                "status": "confirmed",
+                "audio": audio_b64,
+                "invoice": invoice.model_dump(mode="json"),
+                "log_dir": log_dir,
+                "pdf_path": pdf_path,
+                "pdf_url": pdf_url,
+                "transcript": full_transcript,
+            }
+
+        # Jede andere Eingabe interpretiert das System als Korrektur.
+        PENDING_CONFIRMATION.pop(session_id, None)
+        overwrite_existing = True
+
     distance = 0.0
     m_distance = re.search(
         r"(\d+(?:[.,]\d+)?)\s*(?:km|kilometer)",
@@ -795,7 +898,9 @@ def _handle_conversation(
         ):
             parsed.customer.pop("name", None)
         if had_state:
-            invoice = merge_invoice_data(INVOICE_STATE[session_id], parsed)
+            invoice = merge_invoice_data(
+                INVOICE_STATE[session_id], parsed, allow_overwrite=overwrite_existing
+            )
         else:
             invoice = parsed
     except ValueError:
@@ -1000,6 +1105,13 @@ def _handle_conversation(
         "Ich habe die vorläufige Rechnung erstellt und an das Abrechnungssystem übergeben."
     )
     session_msgs.append({"role": "assistant", "content": message})
+    # Alle Angaben vollständig – Zusammenfassung schicken und Bestätigung abwarten.
+    summary = _build_invoice_summary(invoice, placeholder_notice)
+    session_msgs.append({"role": "assistant", "content": summary})
+    PENDING_CONFIRMATION[session_id] = {
+        "invoice": invoice.model_copy(deep=True),
+        "summary": summary,
+    }
     log_dir = store_interaction(audio_bytes, session_msgs, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
     pdf_url = "/" + pdf_path.replace("\\", "/")
@@ -1015,6 +1127,19 @@ def _handle_conversation(
         pdf_url=pdf_url,
         transcript=full_transcript,
     )
+    audio_b64 = base64.b64encode(text_to_speech(summary)).decode("ascii")
+    return {
+        "done": False,
+        "status": "awaiting_confirmation",
+        "summary": summary,
+        "message": summary,
+        "audio": audio_b64,
+        "invoice": invoice.model_dump(mode="json"),
+        "log_dir": log_dir,
+        "pdf_path": pdf_path,
+        "pdf_url": pdf_url,
+        "transcript": full_transcript,
+    }
 
 
 @router.post("/conversation/")
