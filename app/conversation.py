@@ -850,9 +850,11 @@ def _handle_conversation(
             invoice = pending["invoice"]
             summary = pending["summary"]
             send_to_billing_system(invoice)
+            detailed_summary = build_invoice_summary(invoice)
             message = (
                 "Rechnung bestätigt und finalisiert. "
-                f"Gesamtbetrag: {invoice.amount.get('total', 0.0)} Euro."
+                f"{detailed_summary} "
+                "Ich habe die vorläufige Rechnung erstellt und an das Abrechnungssystem übergeben."
             )
             session_msgs.append({"role": "assistant", "content": message})
             log_dir = store_interaction(audio_bytes, session_msgs, invoice)
@@ -860,6 +862,7 @@ def _handle_conversation(
             pdf_url = "/" + pdf_path.replace("\\", "/")
             audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
             PENDING_CONFIRMATION.pop(session_id, None)
+            SESSION_STATUS[session_id] = "completed"
             return {
                 "done": True,
                 "message": message,
@@ -1097,14 +1100,6 @@ def _handle_conversation(
             transcript=full_transcript,
         )
 
-    # Alle Angaben vollständig – Rechnung erzeugen und Session aufräumen.
-    summary = build_invoice_summary(invoice)
-    send_to_billing_system(invoice)
-    message = (
-        f"{summary} "
-        "Ich habe die vorläufige Rechnung erstellt und an das Abrechnungssystem übergeben."
-    )
-    session_msgs.append({"role": "assistant", "content": message})
     # Alle Angaben vollständig – Zusammenfassung schicken und Bestätigung abwarten.
     summary = _build_invoice_summary(invoice, placeholder_notice)
     session_msgs.append({"role": "assistant", "content": summary})
@@ -1115,19 +1110,8 @@ def _handle_conversation(
     log_dir = store_interaction(audio_bytes, session_msgs, invoice)
     pdf_path = str(Path(log_dir) / "invoice.pdf")
     pdf_url = "/" + pdf_path.replace("\\", "/")
-    audio_b64 = base64.b64encode(text_to_speech(message)).decode("ascii")
-    SESSION_STATUS[session_id] = "completed"
-    return dict(
-        done=True,
-        message=message,
-        audio=audio_b64,
-        invoice=invoice.model_dump(mode="json"),
-        log_dir=log_dir,
-        pdf_path=pdf_path,
-        pdf_url=pdf_url,
-        transcript=full_transcript,
-    )
     audio_b64 = base64.b64encode(text_to_speech(summary)).decode("ascii")
+    SESSION_STATUS[session_id] = "awaiting_confirmation"
     return {
         "done": False,
         "status": "awaiting_confirmation",
