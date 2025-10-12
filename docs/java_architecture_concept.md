@@ -108,3 +108,24 @@ Quarkus ermöglicht geringe Startzeiten und geringen Footprint – passend für 
 
 > Die Handwerker-App für sprachgesteuerte Rechnungen entstand ohne eine Zeile menschlich geschriebenen Codes – pure Vibecoding-Power! Doch was passiert, wenn wir diesen autonomen Prototypen in etablierte Java-Landschaften überführen müssen? In meinem Vortrag zeige ich, wie wir den bestehenden FastAPI/Python-Stack systematisch auf Spring Boot mit Spring AI sowie auf Quarkus mit langchain4j abbilden. Wir sprechen über Architekturmuster für Speech-to-Text, LLM-Orchestrierung und Billing-Workflows, über native Builds und serverlose Deployments – und über Governance-Fragen, wenn KI nicht nur Anwendungen, sondern auch deren Rollout steuert. Wer wissen möchte, wie sich vollständige Automatisierung mit Enterprise-Anforderungen vereinen lässt, bekommt hier das Praxis-How-to: von Prompt-Design über Observability bis zur API-Sicherheit. Das Ergebnis: Zwei JVM-Implementierungswege, die den Vibecoding-Spirit bewahren und gleichzeitig die Brücke zur Java-Welt schlagen.
 
+### JDK 25: Vorteile & Neuerungen für den Vibecoding-Stack
+
+1. **Leistungsfähigere KI-Workloads dank Project Panama**  
+   - Mit dem weiter stabilisierten Foreign Function & Memory API (FFM) lassen sich Whisper- oder Deep-Learning-Libraries effizienter aus Java heraus ansteuern – ideal für autonome Pipelines, die native STT-Engines nutzen müssen.  
+   - Zero-Copy-Speicherzugriff verringert Latenzen, wenn Audio-Streams zwischen STT und LLM weitergereicht werden.
+
+2. **Skalierbarkeit durch Virtual Threads & strukturierte Nebenläufigkeit**  
+   - Project Loom ist in JDK 25 nochmals optimiert, wodurch tausende parallele Aufträge (Transkription, LLM-Aufrufe, Billing-Jobs) ohne komplexes Thread-Management laufen.  
+   - Strukturierte Nebenläufigkeit liefert klare Abbruch- und Timeout-Strategien für autonome Agenten-Pipelines.
+
+3. **Verbesserte Security Defaults**  
+   - Hardened TLS-Stacks und erweiterte KeyStore-APIs erleichtern den sicheren Betrieb der KI-Services im Enterprise-Kontext.  
+   - Zusätzlich abgesicherte Sandbox-Mechanismen helfen, generierten Code sicher zu evaluieren – wichtig beim Vibecoding-Prinzip.
+
+4. **Produktivitätsboost durch neue Sprachfeatures**  
+   - Fortschritte bei Pattern Matching for switch und Record Patterns reduzieren Boilerplate in Domain-Klassen wie `InvoiceContext`.  
+   - Sequenced Collections und String Templates (Preview) bieten expressivere DSLs für Prompt-Generierung und Template-Engines.
+
+5. **Bessere Native-Build-Erfahrung**  
+   - JDK 25 harmoniert stärker mit GraalVM/Mandrel, was kleinere native Images für Spring/Quarkus bringt – entscheidend für Vibecoding-Deployments auf Edge-Geräten oder Functions-as-a-Service.
+
