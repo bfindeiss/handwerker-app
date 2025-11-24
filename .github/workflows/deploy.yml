@@ -22,7 +22,7 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
             echo "Required AWS credentials are not set. Skipping deployment."
           fi
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         if: steps.deploy-check.outputs.run == 'true'
       - name: Set up Python
         if: steps.deploy-check.outputs.run == 'true'
