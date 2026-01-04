@@ -573,6 +573,130 @@ def test_conversation_ignores_auto_customer_name(monkeypatch, tmp_data_dir):
     monkeypatch.setattr(conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir))
     monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
 
+
+def test_conversation_clarification_needed_for_ambiguous_roles_and_material_sum(
+    monkeypatch, tmp_data_dir
+):
+    """Asks structured clarification questions for roles and material sums."""
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
+
+    def fake_extract(text):
+        return json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {"name": "Max Muster"},
+                "service": {"description": "Fensterreparatur", "materialIncluded": True},
+                "items": [
+                    {
+                        "description": "Arbeitszeit",
+                        "category": "labor",
+                        "quantity": 2,
+                        "unit": "h",
+                        "unit_price": 0,
+                        "worker_role": None,
+                    },
+                    {
+                        "description": "Material",
+                        "category": "material",
+                        "quantity": 0,
+                        "unit": "stk",
+                        "unit_price": 0,
+                    },
+                ],
+                "amount": {"total": 0, "currency": "EUR"},
+            }
+        )
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation-text/",
+        data={"session_id": "clarify", "text": "Meister und Geselle waren vor Ort."},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "clarification_needed"
+    assert "Wie viele Meisterstunden?" in data["clarification_questions"]
+    assert "Wie viele Gesellenstunden?" in data["clarification_questions"]
+    assert "Wie hoch ist die Materialsumme?" in data["clarification_questions"]
+
+
+def test_conversation_example_sentence_no_clarification(monkeypatch, tmp_data_dir):
+    """Example sentence yields a normal confirmation flow without clarifications."""
+    conversation.SESSIONS.clear()
+    conversation.INVOICE_STATE.clear()
+    conversation.SESSION_STATUS.clear()
+    conversation.PENDING_CONFIRMATION.clear()
+
+    def fake_extract(text):
+        return json.dumps(
+            {
+                "type": "InvoiceContext",
+                "customer": {"name": "Max Muster"},
+                "service": {"description": "Türeinbau", "materialIncluded": True},
+                "items": [
+                    {
+                        "description": "Tür",
+                        "category": "material",
+                        "quantity": 1,
+                        "unit": "Stück",
+                        "unit_price": 300,
+                    },
+                    {
+                        "description": "Arbeitszeit Meister",
+                        "category": "labor",
+                        "quantity": 2,
+                        "unit": "h",
+                        "unit_price": 60,
+                        "worker_role": "Meister",
+                    },
+                    {
+                        "description": "Arbeitszeit Geselle",
+                        "category": "labor",
+                        "quantity": 3,
+                        "unit": "h",
+                        "unit_price": 40,
+                        "worker_role": "Geselle",
+                    },
+                    {
+                        "description": "Anfahrt",
+                        "category": "travel",
+                        "quantity": 35,
+                        "unit": "km",
+                        "unit_price": 1.2,
+                    },
+                ],
+                "amount": {"total": 0, "currency": "EUR"},
+            }
+        )
+
+    monkeypatch.setattr(conversation, "extract_invoice_context", fake_extract)
+    monkeypatch.setattr(conversation, "store_interaction", lambda a, t, i: str(tmp_data_dir))
+    monkeypatch.setattr(conversation, "text_to_speech", lambda t: b"mp3")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/conversation-text/",
+        data={
+            "session_id": "example",
+            "text": (
+                "Kunde Max Muster, Musterstraße 1 12345 Berlin. "
+                "Material: Tür 1 Stück 300 Euro. Meister 2 Stunden, "
+                "Geselle 3 Stunden, Anfahrt 35 km."
+            ),
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "awaiting_confirmation"
+    assert not data.get("clarification_questions")
+
 def test_conversation_delete_position(monkeypatch):
     """Removes an invoice item when requested."""
     conversation.SESSIONS.clear()
