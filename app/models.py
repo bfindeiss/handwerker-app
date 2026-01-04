@@ -376,10 +376,24 @@ def clean_json_text(raw: str, *, error_label: str = "empty json") -> str:
 def parse_model_json(raw_json: str, model_cls: type[TModel], *, error_label: str) -> TModel:
     """Parst LLM-JSON in ein Pydantic-Modell."""
     cleaned = clean_json_text(raw_json, error_label=error_label)
+    if _looks_like_json_schema(cleaned):
+        raise ValueError(f"{error_label}: received json schema instead of data payload")
     try:
         return model_cls.model_validate_json(cleaned)
     except ValidationError as exc:
         raise ValueError(error_label) from exc
+
+
+def _looks_like_json_schema(cleaned_json: str) -> bool:
+    """Erkennt, ob die LLM-Antwort versehentlich ein JSON-Schema ist."""
+    try:
+        payload = json.loads(cleaned_json)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    schema_keys = {"$defs", "$schema", "properties", "type"}
+    return bool(schema_keys.intersection(payload.keys()))
 
 
 def parse_extraction_result(raw_json: str) -> ExtractionResult:

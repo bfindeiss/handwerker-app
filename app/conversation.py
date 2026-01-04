@@ -892,10 +892,10 @@ def _handle_conversation(
 
     # Rechnungsdaten aus dem bisherigen Gespräch extrahieren.
     had_state = session_id in INVOICE_STATE
-    invoice_json = extract_invoice_context(full_transcript)
     parse_error = False
     placeholder_notice = False
     try:
+        invoice_json = extract_invoice_context(full_transcript)
         parsed = parse_invoice_context(invoice_json)
         if not _user_set_customer_name(
             parsed.customer.get("name"), full_transcript
@@ -909,6 +909,7 @@ def _handle_conversation(
             invoice = parsed
     except ValueError:
         parse_error = True
+        invoice_json = ""
         if had_state:
             invoice = INVOICE_STATE[session_id]
         else:

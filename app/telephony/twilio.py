@@ -52,8 +52,8 @@ async def twilio_recording(request: Request, background_tasks: BackgroundTasks):
     SESSIONS[call_sid] = full_transcript
 
     # Kontext aus dem Transkript extrahieren und prüfen, ob Daten fehlen.
-    invoice_json = extract_invoice_context(full_transcript)
     try:
+        invoice_json = extract_invoice_context(full_transcript)
         invoice = parse_invoice_context(invoice_json)
     except ValueError:
         missing = [

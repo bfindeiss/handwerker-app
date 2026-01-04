@@ -24,8 +24,8 @@ async def sipgate_recording(request: Request, background_tasks: BackgroundTasks)
         return {"error": "Keine Aufnahme erhalten."}
     audio_bytes = await download_recording(recording_url)
     transcript = transcribe_audio(audio_bytes)
-    invoice_json = extract_invoice_context(transcript)
     try:
+        invoice_json = extract_invoice_context(transcript)
         invoice = parse_invoice_context(invoice_json)
     except ValueError:
         return {"error": "Ungültiger Rechnungsinhalt"}
