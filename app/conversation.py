@@ -697,7 +697,7 @@ def _handle_direct_corrections(session_id: str, transcript_part: str) -> dict | 
     spoken = " ".join(filter(None, (_ensure_period(msg) for msg in feedback)))
     if updated:
         SESSION_STATUS[session_id] = "collecting"
-        spoken = (spoken + " Ich fasse gleich neu zusammen.").strip()
+        spoken = (spoken + " Zusammenfassung folgt.").strip()
     else:
         SESSION_STATUS.setdefault(session_id, "collecting")
 
@@ -736,23 +736,16 @@ def _build_invoice_summary(
         price = f" zu {item.unit_price:.2f} EUR" if item.unit_price else ""
         quantity = f"{item.quantity:g}{unit}" if item.quantity is not None else "-"
         role = f" ({item.worker_role})" if item.worker_role else ""
-        item_lines.append(
-            f"{idx}. {item.description}{role}: {quantity}{price}"
-        )
+        item_lines.append(f"{idx}: {item.description}{role} {quantity}{price}")
 
-    items_text = "\n".join(item_lines) if item_lines else "Keine Positionen erfasst."
-    summary_lines = [
-        "Bitte bestätigen Sie die folgenden Rechnungsdaten:",
-        f"Kunde: {customer}",
-        f"Leistung: {service}",
-        "Positionen:",
-        items_text,
-        f"Gesamtbetrag: {total:.2f} {currency}",
-    ]
+    items_text = ", ".join(item_lines) if item_lines else "keine Positionen"
+    second_sentence = f"Positionen {items_text}. Gesamt {total:.2f} {currency}."
     if placeholder_notice:
-        summary_lines.append(
-            "Hinweis: Teile der Rechnung basieren noch auf Platzhaltern."
-        )
+        second_sentence = second_sentence.rstrip(".") + " (Platzhalterdaten vorhanden)."
+    summary_lines = [
+        f"Bestätigen: Kunde {customer}, Leistung {service}.",
+        second_sentence,
+    ]
     return "\n".join(summary_lines)
 
 
@@ -860,9 +853,9 @@ def _handle_conversation(
             send_to_billing_system(invoice)
             detailed_summary = build_invoice_summary(invoice)
             message = (
-                "Rechnung bestätigt und finalisiert. "
+                "Rechnung bestätigt. "
                 f"{detailed_summary} "
-                "Ich habe die vorläufige Rechnung erstellt und an das Abrechnungssystem übergeben."
+                "Rechnung an das Abrechnungssystem gesendet."
             )
             session_msgs.append({"role": "assistant", "content": message})
             log_dir = store_interaction(audio_bytes, session_msgs, invoice)
@@ -1115,8 +1108,8 @@ def _handle_conversation(
 
     if placeholder_notice:
         message = (
-            "Ich habe bislang nur Platzhalter für Arbeitszeit, Material und Anfahrt "
-            "eingesetzt. Bitte beschreibe die tatsächlichen Positionen."
+            "Platzhalter für Arbeitszeit, Material und Anfahrt aktiv. "
+            "Bitte die tatsächlichen Positionen nennen."
         )
         session_msgs.append({"role": "assistant", "content": message})
         log_dir = store_interaction(audio_bytes, session_msgs, invoice)

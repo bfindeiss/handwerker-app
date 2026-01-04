@@ -8,12 +8,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const helpPanel = document.getElementById('helpPanel');
   const textInput = document.getElementById('textInput');
   const sendText = document.getElementById('sendText');
+  const ttsControls = document.getElementById('ttsControls');
+  const ttsStartBtn = document.getElementById('ttsStart');
+  const ttsPauseBtn = document.getElementById('ttsPause');
+  const ttsStopBtn = document.getElementById('ttsStop');
 
   const sessionId = crypto.randomUUID();
   let recorder;
   let audioStream;
   let fullTranscript = '';
   let pendingClarifications = [];
+  let latestTtsText = '';
+  let currentUtterance;
+  const enableManualTts = window.APP_CONFIG?.enableManualTts ?? true;
+  const canUseSpeechSynthesis = 'speechSynthesis' in window;
 
   function addMessage(text, sender) {
     const wrapper = document.createElement('div');
@@ -28,14 +36,71 @@ document.addEventListener('DOMContentLoaded', () => {
     chat.scrollTop = chat.scrollHeight;
   }
 
+  function setLatestTtsText(text) {
+    latestTtsText = (text || '').trim();
+  }
+
+  function speakLatestTts() {
+    if (!latestTtsText || !canUseSpeechSynthesis) return;
+    if (speechSynthesis.paused && speechSynthesis.speaking) {
+      speechSynthesis.resume();
+      return;
+    }
+    speechSynthesis.cancel();
+    currentUtterance = new SpeechSynthesisUtterance(latestTtsText);
+    currentUtterance.lang = 'de-DE';
+    speechSynthesis.speak(currentUtterance);
+  }
+
+  function pauseTts() {
+    if (!canUseSpeechSynthesis) return;
+    if (speechSynthesis.speaking && !speechSynthesis.paused) {
+      speechSynthesis.pause();
+    }
+  }
+
+  function stopTts() {
+    if (!canUseSpeechSynthesis) return;
+    speechSynthesis.cancel();
+  }
+
+  function updateTtsTextFromResponse(data) {
+    if (data.message) {
+      setLatestTtsText(data.message);
+      return;
+    }
+    if (data.question) {
+      setLatestTtsText(data.question);
+      return;
+    }
+    if (Array.isArray(data.clarification_questions) && data.clarification_questions.length) {
+      setLatestTtsText(data.clarification_questions.join(' '));
+    }
+  }
+
+  function initializeTtsControls() {
+    if (!ttsControls) return;
+    if (!enableManualTts) {
+      ttsControls.classList.add('hidden');
+      return;
+    }
+    if (!canUseSpeechSynthesis) {
+      ttsControls.classList.add('hidden');
+      return;
+    }
+    ttsStartBtn?.addEventListener('click', speakLatestTts);
+    ttsPauseBtn?.addEventListener('click', pauseTts);
+    ttsStopBtn?.addEventListener('click', stopTts);
+  }
+
   recordBtn.addEventListener('click', async () => {
     if (!recordBtn.classList.contains('recording')) {
       audioStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          noiseSuppression: true,
-          echoCancellation: true,
-        },
+      audio: {
+        sampleRate: 16000,
+        noiseSuppression: true,
+        echoCancellation: true,
+      },
       });
       const audioContext = new AudioContext({ sampleRate: 16000 });
       const input = audioContext.createMediaStreamSource(audioStream);
@@ -97,7 +162,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.message) {
       addMessage(data.message, 'bot');
     }
-    if (data.audio) {
+    if (enableManualTts) {
+      updateTtsTextFromResponse(data);
+    } else if (data.audio) {
       new Audio(`data:audio/mpeg;base64,${data.audio}`).play();
     }
     if (data.done && data.log_dir) {
@@ -133,7 +200,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.message) {
       addMessage(data.message, 'bot');
     }
-    if (data.audio) {
+    if (enableManualTts) {
+      updateTtsTextFromResponse(data);
+    } else if (data.audio) {
       new Audio(`data:audio/mpeg;base64,${data.audio}`).play();
     }
     if (data.done && data.log_dir) {
@@ -142,4 +211,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     status.textContent = '';
   }
+
+  initializeTtsControls();
 });
