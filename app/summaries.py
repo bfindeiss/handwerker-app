@@ -40,8 +40,8 @@ def _describe_item(index: int, item: InvoiceItem) -> str:
     role = f" ({item.worker_role})" if item.worker_role else ""
 
     return (
-        f"Position {index}: {item.description}{role} umfasst {quantity}{unit_for_quantity} "
-        f"zu {unit_price} je {unit} mit einem Netto-Betrag von {total}."
+        f"{index}: {item.description}{role} {quantity}{unit_for_quantity} à {unit_price} "
+        f"({total})"
     )
 
 
@@ -58,12 +58,12 @@ def build_invoice_summary(invoice: InvoiceContext) -> str:
 
     customer_name = (invoice.customer.get("name") or "").strip()
     if customer_name:
-        customer_sentence = f"Für den Kunden {customer_name} wurde die Leistung"
+        customer_sentence = f"Kunde {customer_name}, Leistung"
     else:
-        customer_sentence = "Für den Kunden wurde die Leistung"
+        customer_sentence = "Kunde unbekannt, Leistung"
 
     service_description = (invoice.service.get("description") or "ohne Titel").strip()
-    service_sentence = f" \"{service_description}\" erfasst."
+    service_sentence = f"\"{service_description}\"."
 
     item_sentences = _iter_item_descriptions(invoice.items)
 
@@ -71,18 +71,16 @@ def build_invoice_summary(invoice: InvoiceContext) -> str:
     tax = invoice.amount.get("tax") or 0.0
     total = invoice.amount.get("total") or net + tax
 
-    totals = [
-        f"Die Zwischensumme netto beträgt {_format_money(net)}.",
-    ]
     if tax:
-        totals.append(f"Die Umsatzsteuer liegt bei {_format_money(tax)}.")
-    totals.append(
-        f"Der Rechnungsbetrag brutto beläuft sich auf {_format_money(total)}."
+        totals_text = (
+            f"Gesamt {_format_money(total)} (Netto {_format_money(net)}, MwSt {_format_money(tax)})."
+        )
+    else:
+        totals_text = f"Gesamt {_format_money(total)}."
+
+    item_text = (
+        "Positionen: " + "; ".join(item_sentences) if item_sentences else "Keine Positionen"
     )
-
-    sentences = [customer_sentence + service_sentence]
-    sentences.extend(item_sentences)
-    sentences.extend(totals)
-
-    return " ".join(sentence.strip() for sentence in sentences if sentence)
-
+    summary = f"{customer_sentence} {service_sentence} {item_text}."
+    summary = summary.strip()
+    return f"{summary} {totals_text}".strip()

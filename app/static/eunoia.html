@@ -6,6 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Eunoia Conversational Hub</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    window.APP_CONFIG = {
+      enableManualTts: __ENABLE_MANUAL_TTS__,
+    };
+  </script>
   <style>
     #record.recording {
       animation: pulse 1.5s infinite;
@@ -44,6 +49,11 @@
           <input id="imageInput" type="file" accept="image/*" class="hidden" />
         </div>
         <p class="mt-2 text-gray-700 text-sm">Unterstützte Formate: WAV, MP3, M4A</p>
+        <div id="ttsControls" class="mt-4 w-full flex flex-wrap gap-2 justify-center">
+          <button id="ttsStart" type="button" class="px-4 py-2 bg-emerald-600 text-white rounded shadow hover:bg-emerald-500">▶️ Start Vorlesen</button>
+          <button id="ttsPause" type="button" class="px-4 py-2 bg-amber-500 text-white rounded shadow hover:bg-amber-400">⏸️ Pause</button>
+          <button id="ttsStop" type="button" class="px-4 py-2 bg-rose-600 text-white rounded shadow hover:bg-rose-500">⏹️ Stop Vorlesen</button>
+        </div>
         <div class="mt-4 w-full flex gap-2">
           <input id="textInput" type="text" placeholder="Text eingeben..." class="flex-1 p-2 rounded border border-gray-300" />
           <button id="sendText" type="button" class="px-4 py-2 bg-indigo-600 text-white rounded">Senden</button>

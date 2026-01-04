@@ -11,6 +11,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [Rechnungsvorlage (PDF)](#rechnungsvorlage-pdf)
 - [Telefonie konfigurieren](#telefonie-konfigurieren)
 - [Audioverarbeitung & Weboberfläche](#audioverarbeitung--weboberfläche)
+- [UI-Guidelines](#ui-guidelines)
 - [Dialogbasierte Konversation](#dialogbasierte-konversation)
 - [Lokaler LLM (Ollama)](#lokaler-llm-ollama)
 - [MacBook Pro: Lokale Ausführung mit Ollama](#macbook-pro-lokale-ausführung-mit-ollama)
@@ -71,6 +72,7 @@ cp .env.example .env  # bei lokaler Nutzung ist kein OPENAI_API_KEY nötig
 # STT_LANGUAGE=de  # Sprachcode für die Erkennung
 # TELEPHONY_PROVIDER=twilio|sipgate
 # TTS_PROVIDER=gtts|elevenlabs
+# ENABLE_MANUAL_TTS=true  # manuelle TTS-Steuerung in der Weboberfläche
 # Angaben zum eigenen Unternehmen auf der Rechnung
 # SUPPLIER_NAME=Beispiel GmbH
 # SUPPLIER_ADDRESS=Musterstraße 1, 12345 Musterstadt
@@ -137,7 +139,13 @@ die Datei auch als `transcript_replacements.yaml` (oder `.yml`) vorliegen.
 
 ### Weboberfläche
 
-Unter `/web` steht eine moderne, dialogbasierte Oberfläche zur Verfügung. Über das Mikrofon-Symbol lassen sich Sprachbeiträge aufzeichnen, die an den Endpunkt `/conversation/` geschickt werden. Der Assistent stellt Rückfragen, spielt sie als Audio ab und zeigt den Chatverlauf an. Sobald alle Angaben vorliegen, wird die Rechnung erzeugt und als PDF eingebettet.
+Unter `/web` steht eine moderne, dialogbasierte Oberfläche zur Verfügung. Über das Mikrofon-Symbol lassen sich Sprachbeiträge aufzeichnen, die an den Endpunkt `/conversation/` geschickt werden. Der Assistent stellt Rückfragen und zeigt den Chatverlauf an. Sobald alle Angaben vorliegen, wird die Rechnung erzeugt und als PDF eingebettet.
+
+Die TTS-Ausgabe wird in der Weboberfläche manuell gesteuert: ▶️ Start Vorlesen spielt den letzten Bot-Text per Web Speech API ab, ⏸️ Pause pausiert die Ausgabe, ⏹️ Stop Vorlesen beendet sie. Automatisches Abspielen kann über `ENABLE_MANUAL_TTS=false` wieder aktiviert werden.
+
+## UI-Guidelines
+
+Die UI-Guidelines für die Weboberfläche inklusive TTS-Steuerung und Sprechstil stehen in [`docs/ui-guidelines.md`](docs/ui-guidelines.md).
 
 ## Dialogbasierte Konversation
 

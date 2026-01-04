@@ -7,7 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import File, HTTPException, UploadFile, FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 # Die eigentliche Geschäftslogik steckt in diesen Hilfsmodulen. Wir holen sie
@@ -83,7 +83,10 @@ def read_root():
 @app.get("/web")
 def web_interface():
     """Serve unified HTML interface for recording and uploading audio."""
-    return FileResponse("app/static/eunoia.html")
+    html = Path("app/static/eunoia.html").read_text(encoding="utf-8")
+    enable_manual_tts = "true" if settings.enable_manual_tts else "false"
+    html = html.replace("__ENABLE_MANUAL_TTS__", enable_manual_tts)
+    return HTMLResponse(html)
 
 
 def _convert_to_wav(audio_bytes: bytes) -> bytes:

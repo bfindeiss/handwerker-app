@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     telephony_provider: str = "twilio"
     tts_provider: str = "gtts"
     elevenlabs_api_key: SecretStr | None = None
+    enable_manual_tts: bool = True
 
     # Standardpreise für Positionen, damit Rechnungen sinnvolle Beträge
     # enthalten, selbst wenn keine expliziten Angaben gemacht werden.
