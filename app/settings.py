@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     billing_adapter: str | None = None
     mcp_endpoint: str | None = None
+    # Feature-Flag für die vorbereitete MCP-Schnittstelle (standardmäßig aus).
+    enable_mcp: bool = False
 
     # Vorgabewerte für KI- und STT-Backends
     llm_provider: str = "openai"
