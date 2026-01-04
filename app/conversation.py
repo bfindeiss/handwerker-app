@@ -777,7 +777,10 @@ def _is_confirmation(text: str) -> bool:
 
 
 def _handle_conversation(
-    session_id: str, transcript_part: str, audio_bytes: bytes
+    session_id: str,
+    transcript_part: str,
+    audio_bytes: bytes,
+    clarification_context: str | None = None,
 ) -> dict:
     """Gemeinsame Logik für Sprach- und Texteingaben."""
 
@@ -835,6 +838,11 @@ def _handle_conversation(
     correction = _handle_direct_corrections(session_id, transcript_part)
     if correction:
         return correction
+
+    if clarification_context:
+        context = clarification_context.strip()
+        if context:
+            transcript_part = f"{transcript_part}\n\nAntworten zu Rückfragen: {context}".strip()
 
     # Neues Transkript zur Session hinzufügen.
     session_msgs = SESSIONS.setdefault(session_id, [])
@@ -1000,26 +1008,52 @@ def _handle_conversation(
 
     INVOICE_STATE[session_id] = invoice
 
-    if ambiguous_roles:
-        role_list = ", ".join(sorted(detected_roles)) or "verschiedene Rollen"
-        question = (
-            "Ich habe mehrere Rollen im Gespräch gehört ("
-            f"{role_list}"
-            "). Für welche Rolle sollen die Arbeitsstunden berechnet werden?"
-        )
-        already_asked = any(
-            msg.get("content") == question and msg.get("role") == "assistant"
-            for msg in session_msgs
-        )
-        if not already_asked:
-            session_msgs.append({"role": "assistant", "content": question})
+    clarification_questions: list[str] = []
+    if not placeholder_notice:
+        if ambiguous_roles or (labor_items_without_role and not detected_roles):
+            role_targets = [role for role in ("Meister", "Geselle") if role in detected_roles]
+            if not role_targets:
+                role_targets = ["Meister", "Geselle"]
+            role_question_map = {
+                "Meister": "Wie viele Meisterstunden?",
+                "Geselle": "Wie viele Gesellenstunden?",
+            }
+            clarification_questions.extend(
+                [
+                    role_question_map.get(role, f"Wie viele Stunden für {role}?")
+                    for role in role_targets
+                ]
+            )
+
+        material_items = [item for item in invoice.items if item.category == "material"]
+        material_total = sum(item.total for item in material_items)
+        if invoice.service.get("materialIncluded") and (
+            not material_items or material_total <= 0
+        ):
+            clarification_questions.append("Wie hoch ist die Materialsumme?")
+
+    if clarification_questions:
+        unique_questions = []
+        for question in clarification_questions:
+            if question not in unique_questions:
+                unique_questions.append(question)
+        for question in unique_questions:
+            already_asked = any(
+                msg.get("content") == question and msg.get("role") == "assistant"
+                for msg in session_msgs
+            )
+            if not already_asked:
+                session_msgs.append({"role": "assistant", "content": question})
+        combined = "\n".join(unique_questions)
         log_dir = store_interaction(audio_bytes, session_msgs, invoice)
         pdf_path = str(Path(log_dir) / "invoice.pdf")
         pdf_url = "/" + pdf_path.replace("\\", "/")
-        audio_b64 = base64.b64encode(text_to_speech(question)).decode("ascii")
+        audio_b64 = base64.b64encode(text_to_speech(combined)).decode("ascii")
         return dict(
             done=False,
-            question=question,
+            status="clarification_needed",
+            clarification_questions=unique_questions,
+            question=combined,
             audio=audio_b64,
             transcript=full_transcript,
             invoice=invoice.model_dump(mode="json"),
@@ -1130,16 +1164,28 @@ def _handle_conversation(
 async def voice_conversation(
     session_id: str = Form(...),
     file: UploadFile = File(...),
+    clarification_context: str | None = Form(None),
 ):
     """Führt eine dialogorientierte Aufnahme durch."""
 
     audio_bytes = await file.read()
     transcript_part = transcribe_audio(audio_bytes)
-    return _handle_conversation(session_id, transcript_part, audio_bytes)
+    return _handle_conversation(
+        session_id,
+        transcript_part,
+        audio_bytes,
+        clarification_context=clarification_context,
+    )
 
 
 @router.post("/conversation-text/")
-async def text_conversation(session_id: str = Form(...), text: str = Form(...)):
+async def text_conversation(
+    session_id: str = Form(...),
+    text: str = Form(...),
+    clarification_context: str | None = Form(None),
+):
     """Dialog über Texteingabe."""
 
-    return _handle_conversation(session_id, text, b"")
+    return _handle_conversation(
+        session_id, text, b"", clarification_context=clarification_context
+    )

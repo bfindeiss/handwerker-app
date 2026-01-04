@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let recorder;
   let audioStream;
   let fullTranscript = '';
+  let pendingClarifications = [];
 
   function addMessage(text, sender) {
     const wrapper = document.createElement('div');
@@ -74,6 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const fd = new FormData();
     fd.append('session_id', sessionId);
     fd.append('file', blob, 'audio.wav');
+    if (pendingClarifications.length) {
+      fd.append('clarification_context', pendingClarifications.join(' | '));
+      pendingClarifications = [];
+    }
     const resp = await fetch('/conversation/', { method: 'POST', body: fd });
     const data = await resp.json();
 
@@ -83,7 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
       fullTranscript = data.transcript;
     }
 
-    if (data.question) {
+    if (Array.isArray(data.clarification_questions) && data.clarification_questions.length) {
+      pendingClarifications = data.clarification_questions;
+      data.clarification_questions.forEach((question) => addMessage(question, 'bot'));
+    } else if (data.question) {
       addMessage(data.question, 'bot');
     }
     if (data.message) {
@@ -108,11 +116,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const fd = new FormData();
     fd.append('session_id', sessionId);
     fd.append('text', text);
+    if (pendingClarifications.length) {
+      fd.append('clarification_context', pendingClarifications.join(' | '));
+      pendingClarifications = [];
+    }
     const resp = await fetch('/conversation-text/', { method: 'POST', body: fd });
     const data = await resp.json();
 
     fullTranscript = data.transcript;
-    if (data.question) {
+    if (Array.isArray(data.clarification_questions) && data.clarification_questions.length) {
+      pendingClarifications = data.clarification_questions;
+      data.clarification_questions.forEach((question) => addMessage(question, 'bot'));
+    } else if (data.question) {
       addMessage(data.question, 'bot');
     }
     if (data.message) {
@@ -128,4 +143,3 @@ document.addEventListener('DOMContentLoaded', () => {
     status.textContent = '';
   }
 });
-
