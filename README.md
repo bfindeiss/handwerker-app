@@ -7,6 +7,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 ## Inhaltsverzeichnis
 
 - [Codeübersicht](#codeübersicht)
+- [Codebase-Dokumentation (detailliert)](#codebase-dokumentation-detailliert)
 - [MCP Interface (prepared but inactive)](#mcp-interface-prepared-but-inactive)
 - [Installation und Start](#installation-und-start)
 - [Rechnungsvorlage (PDF)](#rechnungsvorlage-pdf)
@@ -49,6 +50,11 @@ Die wichtigsten Module sind über die `app/`-Struktur verteilt:
   Transkript und JSON im Verzeichnis `data/`.
 
 Weitere Details finden sich direkt in den kommentierten Quelltexten.
+
+## Codebase-Dokumentation (detailliert)
+
+Eine ausführliche, strukturierte Entwicklerdokumentation findest du in
+[`docs/codebase-dokumentation.md`](docs/codebase-dokumentation.md).
 
 ## MCP Interface (prepared but inactive)
 
