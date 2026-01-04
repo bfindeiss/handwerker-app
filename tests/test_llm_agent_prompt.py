@@ -14,10 +14,13 @@ def test_build_prompt_preserves_quotes():
 
 def test_build_prompt_requests_address_field():
     prompt = _build_prompt("Test")
-    assert '"address": str' in prompt
+    assert '"address"' in prompt
 
 
 def test_build_prompt_requests_material_and_labor_details():
     prompt = _build_prompt("Test")
-    assert "Material- bzw. Arbeitsposition" in prompt
-    assert "Menge, Einheit, Preis und ``worker_role``" in prompt
+    assert '"line_items"' in prompt
+    assert '"unit_price_cents"' in prompt
+    assert '"material"' in prompt
+    assert '"labor"' in prompt
+    assert '"meister"' in prompt

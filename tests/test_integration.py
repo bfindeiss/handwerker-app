@@ -27,7 +27,12 @@ class DummyChatResponse:
 
 class DummyOpenAI:
     def __init__(self, result):
-        self.result = result
+        if isinstance(result, list):
+            self.results = result
+        else:
+            self.results = [result]
+        self.index = 0
+        self.calls = 0
 
     class Audio:
         def __init__(self, parent):
@@ -38,7 +43,7 @@ class DummyOpenAI:
                 self.parent = parent
 
             def create(self, **kwargs):
-                return DummyResponse(self.parent.parent.result)
+                return DummyResponse(self.parent.parent.results[0])
 
         @property
         def transcriptions(self):
@@ -53,7 +58,13 @@ class DummyOpenAI:
                 self.parent = parent
 
             def create(self, **kwargs):
-                return DummyChatResponse(self.parent.parent.result)
+                self.parent.parent.calls += 1
+                if self.parent.parent.index < len(self.parent.parent.results):
+                    content = self.parent.parent.results[self.parent.parent.index]
+                    self.parent.parent.index += 1
+                else:
+                    content = self.parent.parent.results[-1]
+                return DummyChatResponse(content)
 
         @property
         def completions(self):
@@ -74,27 +85,53 @@ def test_end_to_end(monkeypatch, tmp_data_dir):
     monkeypatch.setattr(stt.settings, "stt_model", "whisper-1")
     monkeypatch.setattr(stt, "OpenAI", lambda: DummyOpenAI("transcript"))
 
-    dummy_json = json.dumps(
-        {
-            "type": "InvoiceContext",
-            "customer": {"name": "Anna"},
-            "service": {"description": "paint", "materialIncluded": True},
-            "items": [
-                {
-                    "description": "Arbeitszeit Geselle",
-                    "category": "labor",
-                    "quantity": 1,
-                    "unit": "h",
-                    "unit_price": 50.0,
-                    "worker_role": "Geselle",
-                }
-            ],
-            "amount": {"total": 50.0, "currency": "EUR"},
-        }
-    )
+    dummy_json = [
+        json.dumps({"customer": {"name": "Anna"}}),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Fenster-Material",
+                        "type": "material",
+                        "quantity": 1.0,
+                        "unit": "Stk",
+                        "unit_price_cents": 10000,
+                    }
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Arbeitszeit Geselle",
+                        "type": "labor",
+                        "role": "geselle",
+                        "quantity": 1.0,
+                        "unit": "h",
+                        "unit_price_cents": 5000,
+                    }
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Anfahrt",
+                        "type": "travel",
+                        "quantity": 10.0,
+                        "unit": "km",
+                        "unit_price_cents": 100,
+                    }
+                ]
+            }
+        ),
+    ]
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "openai")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "gpt-4o")
-    monkeypatch.setattr(llm_agent, "OpenAI", lambda: DummyOpenAI(dummy_json))
+    dummy = DummyOpenAI(dummy_json)
+    monkeypatch.setattr(llm_agent, "OpenAI", lambda: dummy)
 
     monkeypatch.setattr(app_settings.settings, "billing_adapter", None)
 
@@ -103,7 +140,7 @@ def test_end_to_end(monkeypatch, tmp_data_dir):
     assert response.status_code == 200
     data = response.json()
     assert data["invoice"]["customer"]["name"] == "Anna"
-    assert data["invoice"]["items"][0]["worker_role"] == "Geselle"
+    assert data["invoice"]["items"][1]["worker_role"] == "geselle"
     assert Path(data["log_dir"]).exists()
     assert Path(data["pdf_path"]).exists()
     assert data["pdf_url"].endswith("invoice.pdf")

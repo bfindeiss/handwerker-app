@@ -8,9 +8,21 @@ import logging
 import httpx
 from fastapi import HTTPException
 from openai import OpenAI
+import json
 
 from app.settings import settings
 from app.logging_config import mask_pii
+from app.models import (
+    CustomerPass,
+    ExtractionResult,
+    LaborPass,
+    MaterialPass,
+    TravelPass,
+    extraction_result_json_schema,
+    missing_extraction_fields,
+    parse_model_json,
+)
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -19,30 +31,23 @@ class LLMProvider(ABC):
     """Abstrakte Basis für alle Large-Language-Model-Backends."""
 
     @abstractmethod
-    def extract(self, transcript: str) -> str:
-        """Gibt aus einem Transkript extrahiertes JSON zurück."""
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        """Gibt eine JSON-Ausgabe auf Basis des Prompts zurück."""
         raise NotImplementedError
 
 
 class OpenAIProvider(LLMProvider):
     """Verwendet die Chat-Completions-API von OpenAI."""
 
-    def extract(self, transcript: str) -> str:
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         client = OpenAI()
-        prompt = _build_prompt(transcript)
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
         response = client.chat.completions.create(
             model=settings.llm_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Du bist ein strukturierter JSON-Extraktor für Handwerker. "
-                        "Stelle sicher, dass die Antwort immer einen gültigen "
-                        "``items``-Block mit Rechnungspositionen enthält."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
+            messages=messages,
         )
         try:
             raw_response = response.model_dump_json()
@@ -58,8 +63,8 @@ class OpenAIProvider(LLMProvider):
 class OllamaProvider(LLMProvider):
     """Spricht mit einem lokalen Ollama-Server."""
 
-    def extract(self, transcript: str) -> str:
-        prompt = _build_prompt(transcript)
+    def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
         url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
         timeout_s = max(300.0, settings.ollama_timeout)
         try:
@@ -67,7 +72,7 @@ class OllamaProvider(LLMProvider):
                 url,
                 json={
                     "model": settings.llm_model,
-                    "prompt": prompt,
+                    "prompt": full_prompt,
                     "stream": False,
                     "format": "json",
                 },
@@ -98,30 +103,129 @@ class OllamaProvider(LLMProvider):
         return resp_json.get("response", "")
 
 
+SYSTEM_PROMPT = (
+    "Du bist ein strukturierter JSON-Extraktor für Handwerker. "
+    "Keine Erfindungen: Wenn etwas nicht im Text steht, verwende null oder leere Listen. "
+    "Geldwerte immer als Cent-Integer, Stunden als float, Kilometer als float. "
+    "Füge Unsicherheiten in die notes-Liste ein. "
+    "Antworte ausschließlich mit JSON gemäß dem Schema."
+)
+
+
+def _schema_to_text(schema: dict) -> str:
+    return json.dumps(schema, ensure_ascii=False)
+
+
 def _build_prompt(transcript: str) -> str:
     """Stellt den Eingabetext für das LLM zusammen."""
+    schema = _schema_to_text(extraction_result_json_schema())
     prompt = (
-        "Du bist ein KI-Assistent für Handwerker. Extrahiere aus folgendem Text "
-        "eine strukturierte JSON-Rechnung gemäß folgendem Schema:\n\n"
-        "Führe jede im Text erwähnte Material- bzw. Arbeitsposition mit Menge, "
-        "Einheit, Preis und ``worker_role`` auf.\n\n"
-        "{\n"
-        '  "type": "InvoiceContext",\n'
-        '  "customer": { "name": str, "address": str },\n'
-        '  "service": { "description": str, "materialIncluded": bool },\n'
-        '  "items": [\n'
-        '    { "description": str, "category": '
-        '"material"|"travel"|"labor", "quantity": float, '
-        '"unit": str, "unit_price": float, "worker_role": str? }\n'
-        "  ],\n"
-        '  "amount": { "total": float, "currency": "EUR" }\n'
-        "}\n\n"
+        "Extrahiere aus dem Text eine ExtractionResult-Struktur.\n\n"
+        f"Schema:\n{schema}\n\n"
         f"Text:\n{transcript}\n"
-        "Antworte ausschließlich mit gültigem JSON. ``items`` muss vorhanden sein; "
-        "falls keine Positionen erkennbar sind, gib eine leere Liste zurück."
+        "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
     )
     logger.debug("LLM prompt: %s", mask_pii(prompt))
     return prompt
+
+
+def _build_pass_prompt(transcript: str, task: str, schema: dict) -> str:
+    schema_text = _schema_to_text(schema)
+    prompt = (
+        f"{task}\n\n"
+        f"Schema:\n{schema_text}\n\n"
+        f"Text:\n{transcript}\n"
+        "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
+    )
+    logger.debug("LLM pass prompt: %s", mask_pii(prompt))
+    return prompt
+
+
+def _build_repair_prompt(task: str, schema: dict, raw_response: str) -> str:
+    schema_text = _schema_to_text(schema)
+    prompt = (
+        f"{task}\n\n"
+        "Die vorherige Antwort war ungültiges JSON oder entsprach nicht dem Schema. "
+        "Gib gültiges JSON gemäß dem Schema zurück.\n\n"
+        f"Schema:\n{schema_text}\n\n"
+        f"Ungültige Antwort:\n{raw_response}\n"
+        "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
+    )
+    logger.debug("LLM repair prompt: %s", mask_pii(prompt))
+    return prompt
+
+
+def _run_pass(
+    provider: LLMProvider,
+    transcript: str,
+    task: str,
+    model_cls: type,
+) -> BaseModel:
+    schema = model_cls.model_json_schema()
+    prompt = _build_pass_prompt(transcript, task, schema)
+    response = provider.complete(prompt, system_prompt=SYSTEM_PROMPT)
+    try:
+        return parse_model_json(response, model_cls, error_label="invalid pass payload")
+    except ValueError:
+        repair_prompt = _build_repair_prompt(task, schema, response)
+        repair_response = provider.complete(repair_prompt, system_prompt=SYSTEM_PROMPT)
+        return parse_model_json(
+            repair_response, model_cls, error_label="invalid pass payload"
+        )
+
+
+def _merge_passes(
+    customer_pass: CustomerPass,
+    material_pass: MaterialPass,
+    labor_pass: LaborPass,
+    travel_pass: TravelPass,
+) -> ExtractionResult:
+    line_items = (
+        material_pass.line_items + labor_pass.line_items + travel_pass.line_items
+    )
+    notes = (
+        customer_pass.notes
+        + material_pass.notes
+        + labor_pass.notes
+        + travel_pass.notes
+    )
+    return ExtractionResult(
+        customer=customer_pass.customer,
+        line_items=line_items,
+        notes=notes,
+    )
+
+
+def _extract_multi_pass(provider: LLMProvider, transcript: str) -> str:
+    customer_pass = _run_pass(
+        provider,
+        transcript,
+        task="Pass 1: Extrahiere Kunde und Adresse.",
+        model_cls=CustomerPass,
+    )
+    material_pass = _run_pass(
+        provider,
+        transcript,
+        task="Pass 2: Extrahiere alle Materialpositionen.",
+        model_cls=MaterialPass,
+    )
+    labor_pass = _run_pass(
+        provider,
+        transcript,
+        task="Pass 3: Extrahiere Arbeitszeiten inklusive Rolle (meister/geselle).",
+        model_cls=LaborPass,
+    )
+    travel_pass = _run_pass(
+        provider,
+        transcript,
+        task="Pass 4: Extrahiere Fahrtkosten und sonstige Positionen als travel.",
+        model_cls=TravelPass,
+    )
+    merged = _merge_passes(customer_pass, material_pass, labor_pass, travel_pass)
+    missing = missing_extraction_fields(merged)
+    if missing:
+        raise ValueError(f"missing required fields: {', '.join(missing)}")
+    return merged.model_dump_json()
 
 
 _LLM_PROVIDERS: dict[str, type[LLMProvider]] = {
@@ -142,7 +246,7 @@ def _select_provider() -> LLMProvider:
 def extract_invoice_context(transcript: str) -> str:
     """Hauptschnittstelle für die restliche App."""
     provider = _select_provider()
-    return provider.extract(transcript)
+    return _extract_multi_pass(provider, transcript)
 
 
 def check_llm_backend(timeout: float = 5.0) -> bool:

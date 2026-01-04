@@ -6,6 +6,7 @@ from app.models import (
     InvoiceContext,
     InvoiceItem,
     missing_invoice_fields,
+    extraction_result_json_schema,
 )
 
 
@@ -32,6 +33,37 @@ def test_parse_invoice_context_missing_items():
     raw = '{"type": "InvoiceContext", "customer": {}, "service": {}, "amount": {}}'
     invoice = parse_invoice_context(raw)
     assert invoice.items == []
+
+
+def test_parse_extraction_result_converts_to_invoice_context():
+    raw = json.dumps(
+        {
+            "customer": {
+                "name": "Mia",
+                "address": {"street": "Musterweg 1", "postal_code": "12345"},
+            },
+            "line_items": [
+                {
+                    "description": "Fenster",
+                    "type": "material",
+                    "quantity": 2.0,
+                    "unit": "Stk",
+                    "unit_price_cents": 25000,
+                }
+            ],
+            "notes": [],
+        }
+    )
+    invoice = parse_invoice_context(raw)
+    assert invoice.customer["name"] == "Mia"
+    assert invoice.customer["address"] == "Musterweg 1, 12345"
+    assert invoice.items[0].unit_price == 250.0
+
+
+def test_parse_extraction_result_requires_line_items():
+    raw = json.dumps({"customer": {"name": "Mia"}, "line_items": []})
+    with pytest.raises(ValueError, match="missing required fields"):
+        parse_invoice_context(raw)
 
 
 def test_parse_invoice_context_filters_empty_items():
@@ -197,3 +229,8 @@ def test_missing_invoice_fields():
     )
     invoice.amount["total"] = 40
     assert missing_invoice_fields(invoice) == []
+
+
+def test_extraction_schema_export_includes_line_items():
+    schema = extraction_result_json_schema()
+    assert "line_items" in schema.get("properties", {})

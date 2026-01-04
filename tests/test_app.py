@@ -38,7 +38,12 @@ class DummyChatResponse:
 
 class DummyOpenAI:
     def __init__(self, result):
-        self.result = result
+        if isinstance(result, list):
+            self.results = result
+        else:
+            self.results = [result]
+        self.index = 0
+        self.calls = 0
 
     class Audio:
         def __init__(self, parent):
@@ -49,7 +54,7 @@ class DummyOpenAI:
                 self.parent = parent
 
             def create(self, **kwargs):
-                return DummyResponse(self.parent.parent.result)
+                return DummyResponse(self.parent.parent.results[0])
 
         @property
         def transcriptions(self):
@@ -64,7 +69,13 @@ class DummyOpenAI:
                 self.parent = parent
 
             def create(self, **kwargs):
-                return DummyChatResponse(self.parent.parent.result)
+                self.parent.parent.calls += 1
+                if self.parent.parent.index < len(self.parent.parent.results):
+                    content = self.parent.parent.results[self.parent.parent.index]
+                    self.parent.parent.index += 1
+                else:
+                    content = self.parent.parent.results[-1]
+                return DummyChatResponse(content)
 
         @property
         def completions(self):
@@ -167,35 +178,111 @@ def test_transcribe_audio_command(monkeypatch):
 
 def test_extract_invoice_context(monkeypatch):
     """Extracts invoice context from text via OpenAI LLM"""
-    dummy_json = json.dumps(
-        {
-            "type": "InvoiceContext",
-            "customer": {},
-            "service": {},
-            "items": [],
-            "amount": {},
-        }
-    )
+    dummy_json = [
+        json.dumps(
+            {"customer": {"name": "Anna", "address": {"street": "Straße 1"}}}
+        ),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Tür",
+                        "type": "material",
+                        "quantity": 1.0,
+                        "unit": "Stk",
+                        "unit_price_cents": 10000,
+                    }
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Meisterstunden",
+                        "type": "labor",
+                        "role": "meister",
+                        "quantity": 2.5,
+                        "unit": "h",
+                        "unit_price_cents": 8000,
+                    }
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Anfahrt",
+                        "type": "travel",
+                        "quantity": 35.0,
+                        "unit": "km",
+                        "unit_price_cents": 100,
+                    }
+                ]
+            }
+        ),
+    ]
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "openai")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "gpt-4o")
-    monkeypatch.setattr(llm_agent, "OpenAI", lambda: DummyOpenAI(dummy_json))
+    dummy = DummyOpenAI(dummy_json)
+    monkeypatch.setattr(llm_agent, "OpenAI", lambda: dummy)
     result = llm_agent.extract_invoice_context("text")
-    assert json.loads(result)["type"] == "InvoiceContext"
+    payload = json.loads(result)
+    assert payload["customer"]["name"] == "Anna"
+    assert len(payload["line_items"]) == 3
 
 
 def test_extract_invoice_context_ollama(monkeypatch):
     """Extracts invoice context via Ollama LLM"""
-    dummy_json = json.dumps(
-        {
-            "type": "InvoiceContext",
-            "customer": {},
-            "service": {},
-            "items": [],
-            "amount": {},
-        }
-    )
+    dummy_json = [
+        json.dumps(
+            {"customer": {"name": "Anna", "address": {"street": "Straße 1"}}}
+        ),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Tür",
+                        "type": "material",
+                        "quantity": 1.0,
+                        "unit": "Stk",
+                        "unit_price_cents": 10000,
+                    }
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Meisterstunden",
+                        "type": "labor",
+                        "role": "meister",
+                        "quantity": 2.5,
+                        "unit": "h",
+                        "unit_price_cents": 8000,
+                    }
+                ]
+            }
+        ),
+        json.dumps(
+            {
+                "line_items": [
+                    {
+                        "description": "Anfahrt",
+                        "type": "travel",
+                        "quantity": 35.0,
+                        "unit": "km",
+                        "unit_price_cents": 100,
+                    }
+                ]
+            }
+        ),
+    ]
     monkeypatch.setattr(llm_agent.settings, "llm_provider", "ollama")
     monkeypatch.setattr(llm_agent.settings, "llm_model", "test")
+    responses = iter(dummy_json)
 
     def fake_post(url, json=None, timeout=60):
         assert json["format"] == "json"
@@ -207,13 +294,13 @@ def test_extract_invoice_context_ollama(monkeypatch):
                 pass
 
             def json(self):
-                return {"response": dummy_json}
+                return {"response": next(responses)}
 
         return Resp()
 
     monkeypatch.setattr(llm_agent.httpx, "post", fake_post)
     result = llm_agent.extract_invoice_context("text")
-    assert json.loads(result)["type"] == "InvoiceContext"
+    assert json.loads(result)["customer"]["name"] == "Anna"
 
 
 def test_extract_invoice_context_ollama_model_missing(monkeypatch):
