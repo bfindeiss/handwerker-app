@@ -13,16 +13,13 @@ def test_build_prompt_preserves_quotes():
     assert re.search(r"Text:\nEr sagte \"Hallo\" und \"Tschüss\"\n", prompt)
 
 
-def test_build_prompt_requests_address_field():
+def test_build_prompt_requests_expected_keys():
     prompt = _build_prompt("Test", PreextractCandidates())
-    assert '"address"' in prompt
+    assert "material_positions" in prompt
+    assert "labor_hours" in prompt
+    assert "trip_km" in prompt
 
 
-def test_build_prompt_requests_material_and_labor_details():
+def test_build_prompt_lists_candidates_before_text():
     prompt = _build_prompt("Test", PreextractCandidates())
-    assert '"line_items"' in prompt
-    assert '"unit_price_cents"' in prompt
-    assert '"material"' in prompt
-    assert '"labor"' in prompt
-    assert '"meister"' in prompt
-    assert "Kandidaten (JSON):" in prompt
+    assert prompt.index("Kandidaten (JSON):") < prompt.index("Text:\n")

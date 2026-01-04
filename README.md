@@ -7,6 +7,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 ## Inhaltsverzeichnis
 
 - [Codeübersicht](#codeübersicht)
+- [Material & Arbeitsstunden Extraction](#material--arbeitsstunden-extraction)
 - [MCP Interface (prepared but inactive)](#mcp-interface-prepared-but-inactive)
 - [Installation und Start](#installation-und-start)
 - [Rechnungsvorlage (PDF)](#rechnungsvorlage-pdf)
@@ -49,6 +50,42 @@ Die wichtigsten Module sind über die `app/`-Struktur verteilt:
   Transkript und JSON im Verzeichnis `data/`.
 
 Weitere Details finden sich direkt in den kommentierten Quelltexten.
+
+## Material & Arbeitsstunden Extraction
+
+Für Material- und Arbeitszeitangaben existiert eine deterministische Vorverarbeitung
+(Regex/Heuristiken), die Kandidaten extrahiert und anschließend vom LLM konsolidiert
+wird. Der Prompt erwartet ausschließlich die folgenden Schlüssel:
+
+```json
+{
+  "material_positions": [
+    {
+      "description": "Fenster",
+      "quantity": 2.0,
+      "unit_price_cents": 20000
+    }
+  ],
+  "labor_hours": {
+    "meister": 2.0,
+    "geselle": 4.0
+  },
+  "trip_km": 35.0
+}
+```
+
+Beispiel-Transkript:
+
+```
+Einbau einer Tür und 2 Fenstern, die Tür waren 500€ Materialkosten,
+2 Fenster je 200€, dazu 2 Meisterstunden und 4 Gesellenstunden, 35km Anfahrt.
+```
+
+Erwartetes Schema (vereinfachtes Beispiel):
+
+- `material_positions`: Liste aus Positionen mit `description`, `quantity`, `unit_price_cents`
+- `labor_hours`: Objekt mit `meister` und `geselle` (float oder `null`)
+- `trip_km`: Kilometer als float oder `null`
 
 ## MCP Interface (prepared but inactive)
 
