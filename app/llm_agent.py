@@ -110,7 +110,8 @@ SYSTEM_PROMPT = (
     "Keine Erfindungen: Wenn etwas nicht im Text steht, verwende null oder leere Listen. "
     "Geldwerte immer als Cent-Integer, Stunden als float, Kilometer als float. "
     "Füge Unsicherheiten in die notes-Liste ein. "
-    "Antworte ausschließlich mit JSON gemäß dem Schema."
+    "Antworte ausschließlich mit JSON gemäß dem Schema. "
+    "Gib niemals das Schema selbst aus (kein $defs, keine properties, keine $schema)."
 )
 
 
