@@ -7,6 +7,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 ## Inhaltsverzeichnis
 
 - [Codeübersicht](#codeübersicht)
+- [Codebase-Dokumentation (detailliert)](#codebase-dokumentation-detailliert)
 - [Material & Arbeitsstunden Extraction](#material--arbeitsstunden-extraction)
 - [MCP Interface (prepared but inactive)](#mcp-interface-prepared-but-inactive)
 - [Installation und Start](#installation-und-start)
@@ -51,6 +52,10 @@ Die wichtigsten Module sind über die `app/`-Struktur verteilt:
 
 Weitere Details finden sich direkt in den kommentierten Quelltexten.
 
+## Codebase-Dokumentation (detailliert)
+
+Eine ausführliche, strukturierte Entwicklerdokumentation findest du in
+[`docs/codebase-dokumentation.md`](docs/codebase-dokumentation.md).
 ## Material & Arbeitsstunden Extraction
 
 Für Material- und Arbeitszeitangaben existiert eine deterministische Vorverarbeitung
