@@ -17,11 +17,13 @@ from app.models import (
     ExtractionResult,
     LaborPass,
     MaterialPass,
+    PreextractCandidates,
     TravelPass,
     extraction_result_json_schema,
     missing_extraction_fields,
     parse_model_json,
 )
+from app.preextract import preextract_candidates
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -104,7 +106,8 @@ class OllamaProvider(LLMProvider):
 
 
 SYSTEM_PROMPT = (
-    "Du bist ein strukturierter JSON-Extraktor für Handwerker. "
+    "Du bist ein strukturierter JSON-Reconciler für Handwerker. "
+    "Nutze die Kandidatenliste als primäre Quelle und den Text nur zum Abgleich. "
     "Keine Erfindungen: Wenn etwas nicht im Text steht, verwende null oder leere Listen. "
     "Geldwerte immer als Cent-Integer, Stunden als float, Kilometer als float. "
     "Füge Unsicherheiten in die notes-Liste ein. "
@@ -116,38 +119,58 @@ def _schema_to_text(schema: dict) -> str:
     return json.dumps(schema, ensure_ascii=False)
 
 
-def _build_prompt(transcript: str) -> str:
+def _build_prompt(transcript: str, candidates: PreextractCandidates) -> str:
     """Stellt den Eingabetext für das LLM zusammen."""
     schema = _schema_to_text(extraction_result_json_schema())
+    candidates_json = candidates.model_dump_json()
     prompt = (
-        "Extrahiere aus dem Text eine ExtractionResult-Struktur.\n\n"
+        "Du bist ein Reconciler: Nutze den Originaltext nur zum Abgleich, "
+        "nicht als primäre Quelle. Verwende die Kandidatenliste als Basis "
+        "für die ExtractionResult-Struktur.\n\n"
         f"Schema:\n{schema}\n\n"
-        f"Text:\n{transcript}\n"
+        f"Text:\n{transcript}\n\n"
+        f"Kandidaten (JSON):\n{candidates_json}\n"
         "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
     )
     logger.debug("LLM prompt: %s", mask_pii(prompt))
     return prompt
 
 
-def _build_pass_prompt(transcript: str, task: str, schema: dict) -> str:
+def _build_pass_prompt(
+    transcript: str,
+    candidates: PreextractCandidates,
+    task: str,
+    schema: dict,
+) -> str:
     schema_text = _schema_to_text(schema)
+    candidates_json = candidates.model_dump_json()
     prompt = (
         f"{task}\n\n"
         f"Schema:\n{schema_text}\n\n"
-        f"Text:\n{transcript}\n"
+        f"Text:\n{transcript}\n\n"
+        f"Kandidaten (JSON):\n{candidates_json}\n"
         "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
     )
     logger.debug("LLM pass prompt: %s", mask_pii(prompt))
     return prompt
 
 
-def _build_repair_prompt(task: str, schema: dict, raw_response: str) -> str:
+def _build_repair_prompt(
+    task: str,
+    schema: dict,
+    raw_response: str,
+    candidates: PreextractCandidates,
+    transcript: str,
+) -> str:
     schema_text = _schema_to_text(schema)
+    candidates_json = candidates.model_dump_json()
     prompt = (
         f"{task}\n\n"
         "Die vorherige Antwort war ungültiges JSON oder entsprach nicht dem Schema. "
         "Gib gültiges JSON gemäß dem Schema zurück.\n\n"
         f"Schema:\n{schema_text}\n\n"
+        f"Text:\n{transcript}\n\n"
+        f"Kandidaten (JSON):\n{candidates_json}\n\n"
         f"Ungültige Antwort:\n{raw_response}\n"
         "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
     )
@@ -158,16 +181,23 @@ def _build_repair_prompt(task: str, schema: dict, raw_response: str) -> str:
 def _run_pass(
     provider: LLMProvider,
     transcript: str,
+    candidates: PreextractCandidates,
     task: str,
     model_cls: type,
 ) -> BaseModel:
     schema = model_cls.model_json_schema()
-    prompt = _build_pass_prompt(transcript, task, schema)
+    prompt = _build_pass_prompt(transcript, candidates, task, schema)
     response = provider.complete(prompt, system_prompt=SYSTEM_PROMPT)
     try:
         return parse_model_json(response, model_cls, error_label="invalid pass payload")
     except ValueError:
-        repair_prompt = _build_repair_prompt(task, schema, response)
+        repair_prompt = _build_repair_prompt(
+            task,
+            schema,
+            response,
+            candidates,
+            transcript,
+        )
         repair_response = provider.complete(repair_prompt, system_prompt=SYSTEM_PROMPT)
         return parse_model_json(
             repair_response, model_cls, error_label="invalid pass payload"
@@ -196,28 +226,36 @@ def _merge_passes(
     )
 
 
-def _extract_multi_pass(provider: LLMProvider, transcript: str) -> str:
+def _extract_multi_pass(
+    provider: LLMProvider,
+    transcript: str,
+    candidates: PreextractCandidates,
+) -> str:
     customer_pass = _run_pass(
         provider,
         transcript,
+        candidates,
         task="Pass 1: Extrahiere Kunde und Adresse.",
         model_cls=CustomerPass,
     )
     material_pass = _run_pass(
         provider,
         transcript,
+        candidates,
         task="Pass 2: Extrahiere alle Materialpositionen.",
         model_cls=MaterialPass,
     )
     labor_pass = _run_pass(
         provider,
         transcript,
+        candidates,
         task="Pass 3: Extrahiere Arbeitszeiten inklusive Rolle (meister/geselle).",
         model_cls=LaborPass,
     )
     travel_pass = _run_pass(
         provider,
         transcript,
+        candidates,
         task="Pass 4: Extrahiere Fahrtkosten und sonstige Positionen als travel.",
         model_cls=TravelPass,
     )
@@ -246,7 +284,8 @@ def _select_provider() -> LLMProvider:
 def extract_invoice_context(transcript: str) -> str:
     """Hauptschnittstelle für die restliche App."""
     provider = _select_provider()
-    return _extract_multi_pass(provider, transcript)
+    candidates = preextract_candidates(transcript)
+    return _extract_multi_pass(provider, transcript, candidates)
 
 
 def check_llm_backend(timeout: float = 5.0) -> bool:

@@ -90,6 +90,63 @@ class TravelLineItem(LineItem):
     type: Literal["travel"]
 
 
+class MaterialCandidate(BaseModel):
+    """Deterministisch extrahierte Material-Kandidaten."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    description: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    unit_price_cents: Optional[conint(ge=0)] = None
+    total_price_cents: Optional[conint(ge=0)] = None
+    source_text: Optional[str] = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class TravelCandidate(BaseModel):
+    """Deterministisch extrahierte Fahrt-Kandidaten."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kilometers: Optional[float] = None
+    description: Optional[str] = None
+    source_text: Optional[str] = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class LaborCandidate(BaseModel):
+    """Deterministisch extrahierte Arbeitszeit-Kandidaten."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    meister_hours: Optional[float] = None
+    geselle_hours: Optional[float] = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class AddressCandidate(BaseModel):
+    """Deterministisch extrahierte Kunden- und Adresskandidaten."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    customer_name: Optional[str] = None
+    address: Optional[Address] = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class PreextractCandidates(BaseModel):
+    """Gebündelte Kandidaten aus der Vorverarbeitung."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    materials: list[MaterialCandidate] = Field(default_factory=list)
+    travel: list[TravelCandidate] = Field(default_factory=list)
+    labor: Optional[LaborCandidate] = None
+    address: Optional[AddressCandidate] = None
+    notes: list[str] = Field(default_factory=list)
+
+
 class ExtractionResult(BaseModel):
     """Strikt validierbares Extraktionsschema für LLM-Ausgaben."""
 
