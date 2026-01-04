@@ -7,6 +7,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 ## Inhaltsverzeichnis
 
 - [Codeübersicht](#codeübersicht)
+- [MCP Interface (prepared but inactive)](#mcp-interface-prepared-but-inactive)
 - [Installation und Start](#installation-und-start)
 - [Rechnungsvorlage (PDF)](#rechnungsvorlage-pdf)
 - [Telefonie konfigurieren](#telefonie-konfigurieren)
@@ -47,6 +48,23 @@ Die wichtigsten Module sind über die `app/`-Struktur verteilt:
   Transkript und JSON im Verzeichnis `data/`.
 
 Weitere Details finden sich direkt in den kommentierten Quelltexten.
+
+## MCP Interface (prepared but inactive)
+
+Das Model Context Protocol (MCP) ist eine offene Integrationsschicht, über die KI‑Agenten strukturierte
+Tools und Datenquellen per JSON‑RPC ansprechen können. In diesem Repository ist eine vorbereitete,
+aber **derzeit inaktive** MCP‑Schnittstelle hinterlegt, die nicht im produktiven Request‑Flow genutzt wird.
+
+Beispiel‑Tools, die bereits als Platzhalter implementiert sind:
+
+- `invoice.generate` – Dummy‑Rechnung im internen JSON‑Format
+- `customer.lookup` – Dummy‑Kundenstammdaten
+- `billing.adapter` – Billing‑Adapter‑Platzhalter (Success/Error‑Antworten)
+- `erechnung.adapter` – Dummy‑E‑Rechnungs‑Payload
+
+Aktivieren lässt sich die vorbereitete MCP‑Schnittstelle später über das Feature‑Flag
+`ENABLE_MCP=true` (z. B. in der `.env`). Solange das Flag deaktiviert bleibt, wird
+kein MCP‑Server gestartet und es gibt keine Änderungen am bestehenden Ablauf.
 
 ## Installation und Start
 
