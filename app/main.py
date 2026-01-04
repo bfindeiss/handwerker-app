@@ -138,6 +138,9 @@ async def process_audio(file: UploadFile = File(...)):
         except HTTPException as exc:
             logger.exception("LLM backend failure: %s", exc.detail)
             raise
+        except ValueError as exc:
+            logger.exception("LLM response invalid: %s", exc)
+            raise HTTPException(status_code=502, detail=str(exc))
         finally:
             llm_duration = time.perf_counter() - start
             logger.info("LLM call took %.3f s", llm_duration)
