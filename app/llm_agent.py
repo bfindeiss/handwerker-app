@@ -19,7 +19,6 @@ from app.models import (
     MaterialPass,
     PreextractCandidates,
     TravelPass,
-    extraction_result_json_schema,
     missing_extraction_fields,
     parse_model_json,
 )
@@ -111,7 +110,8 @@ SYSTEM_PROMPT = (
     "Keine Erfindungen: Wenn etwas nicht im Text steht, verwende null oder leere Listen. "
     "Geldwerte immer als Cent-Integer, Stunden als float, Kilometer als float. "
     "Füge Unsicherheiten in die notes-Liste ein. "
-    "Antworte ausschließlich mit JSON gemäß dem Schema."
+    "Antworte ausschließlich mit JSON gemäß dem Schema. "
+    "Gib niemals das Schema selbst aus (kein $defs, keine properties, keine $schema)."
 )
 
 
@@ -121,16 +121,31 @@ def _schema_to_text(schema: dict) -> str:
 
 def _build_prompt(transcript: str, candidates: PreextractCandidates) -> str:
     """Stellt den Eingabetext für das LLM zusammen."""
-    schema = _schema_to_text(extraction_result_json_schema())
     candidates_json = candidates.model_dump_json()
+    response_schema = json.dumps(
+        {
+            "material_positions": [
+                {
+                    "description": "Fenster",
+                    "quantity": 2.0,
+                    "unit_price_cents": 20000,
+                }
+            ],
+            "labor_hours": {"meister": 2.0, "geselle": 4.0},
+            "trip_km": 35.0,
+        },
+        ensure_ascii=False,
+    )
     prompt = (
         "Du bist ein Reconciler: Nutze den Originaltext nur zum Abgleich, "
-        "nicht als primäre Quelle. Verwende die Kandidatenliste als Basis "
-        "für die ExtractionResult-Struktur.\n\n"
-        f"Schema:\n{schema}\n\n"
+        "nicht als primäre Quelle. Verwende die Kandidatenliste als Basis.\n\n"
+        f"Kandidaten (JSON):\n{candidates_json}\n\n"
         f"Text:\n{transcript}\n\n"
-        f"Kandidaten (JSON):\n{candidates_json}\n"
-        "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
+        "Nur diese JSON-Schlüssel generieren: "
+        "material_positions, labor_hours (meister, geselle), trip_km. "
+        "Fülle mit null, wenn nicht sicher.\n"
+        f"Schema-Beispiel:\n{response_schema}\n"
+        "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema-Beispiel."
     )
     logger.debug("LLM prompt: %s", mask_pii(prompt))
     return prompt
@@ -147,8 +162,8 @@ def _build_pass_prompt(
     prompt = (
         f"{task}\n\n"
         f"Schema:\n{schema_text}\n\n"
+        f"Kandidaten (JSON):\n{candidates_json}\n\n"
         f"Text:\n{transcript}\n\n"
-        f"Kandidaten (JSON):\n{candidates_json}\n"
         "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
     )
     logger.debug("LLM pass prompt: %s", mask_pii(prompt))
@@ -169,8 +184,8 @@ def _build_repair_prompt(
         "Die vorherige Antwort war ungültiges JSON oder entsprach nicht dem Schema. "
         "Gib gültiges JSON gemäß dem Schema zurück.\n\n"
         f"Schema:\n{schema_text}\n\n"
-        f"Text:\n{transcript}\n\n"
         f"Kandidaten (JSON):\n{candidates_json}\n\n"
+        f"Text:\n{transcript}\n\n"
         f"Ungültige Antwort:\n{raw_response}\n"
         "Antworte ausschließlich mit gültigem JSON entsprechend dem Schema."
     )
