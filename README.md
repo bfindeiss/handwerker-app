@@ -15,6 +15,7 @@ inklusive unterschiedlicher Stundensätze für Gesellen und Meister.
 - [Lokaler LLM (Ollama)](#lokaler-llm-ollama)
 - [MacBook Pro: Lokale Ausführung mit Ollama](#macbook-pro-lokale-ausführung-mit-ollama)
 - [Tests ausführen](#tests-ausführen)
+- [Eval-Harness](#eval-harness)
 - [Code Coverage in GitHub anzeigen](#code-coverage-in-github-anzeigen)
 - [Deployment auf AWS Lambda](#deployment-auf-aws-lambda)
 - [Deployment auf Render](#deployment-auf-render)
@@ -247,6 +248,17 @@ Zugriff verwendet werden.
 pytest
 ```
 
+## Eval-Harness
+
+Für die Messung der Extraktionsqualität steht ein Evaluationsskript bereit, das
+20 Beispielinputs aus `tests/e2e/eval_cases.yaml` verarbeitet und pro Feld
+Precision/Recall-ähnliche Kennzahlen sowie Summenabweichungen für
+Materialkosten ausgibt:
+
+```bash
+python tests/e2e/extraction_eval.py --cases tests/e2e/eval_cases.yaml
+```
+
 ## Code Coverage in GitHub anzeigen
 
 Die Testabdeckung wird über die Open‑Source‑Action [pytest-coverage-comment](https://github.com/MishaKav/pytest-coverage-comment) direkt in Pull Requests dargestellt. Der Workflow `.github/workflows/ci.yml` führt `pytest` mit Coverage aus, lädt die Dateien `coverage.xml`, `pytest-coverage.txt` und `pytest.xml` als Artefakte hoch und kommentiert die Ergebnisse automatisch im PR. Eine Registrierung bei externen Diensten ist dafür nicht nötig.
@@ -328,4 +340,3 @@ Diese Warnung deutet auf eine inkompatible Kombination von Paketen hin. Ein Modu
 ```bash
 pip install "numpy<2"
 ```
-

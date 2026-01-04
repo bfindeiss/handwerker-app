@@ -1,0 +1,180 @@
+- id: case-01
+  input: "Kunde Max Muster, Musterstraße 1 12345 Berlin. Material: Tür 1 Stück 300 Euro. Meister 2 Stunden, Geselle 3 Stunden, Anfahrt 35 km."
+  expected:
+    customer_name: "Max Muster"
+    address: "Musterstraße 1, 12345 Berlin"
+    material_total_cents: 30000
+    meister_hours: 2.0
+    geselle_hours: 3.0
+    travel_km: 35.0
+- id: case-02
+  input: "Anna Schmidt, Gartenweg 4, 98765 Köln. Fenster 2 Stück à 150 Euro. Geselle 1.5 h. Fahrt 12 km."
+  expected:
+    customer_name: "Anna Schmidt"
+    address: "Gartenweg 4, 98765 Köln"
+    material_total_cents: 30000
+    meister_hours: null
+    geselle_hours: 1.5
+    travel_km: 12.0
+- id: case-03
+  input: "Karl König, Hauptstraße 7 11111 Hamburg. Meister 4 Stunden. Anfahrt 8 km."
+  expected:
+    customer_name: "Karl König"
+    address: "Hauptstraße 7, 11111 Hamburg"
+    material_total_cents: null
+    meister_hours: 4.0
+    geselle_hours: null
+    travel_km: 8.0
+- id: case-04
+  input: "Luisa Roth, Lindenallee 9, 22222 Bremen. Material: Farbe 20 Liter 120 Euro. Geselle 2 h."
+  expected:
+    customer_name: "Luisa Roth"
+    address: "Lindenallee 9, 22222 Bremen"
+    material_total_cents: 12000
+    meister_hours: null
+    geselle_hours: 2.0
+    travel_km: null
+- id: case-05
+  input: "Peter Wolf, Bahnhofstraße 3 33333 Dresden. Tür 1 Stück 450 Euro. Meister 1.5 Stunden. Geselle 2 Stunden. 20 km Anfahrt."
+  expected:
+    customer_name: "Peter Wolf"
+    address: "Bahnhofstraße 3, 33333 Dresden"
+    material_total_cents: 45000
+    meister_hours: 1.5
+    geselle_hours: 2.0
+    travel_km: 20.0
+- id: case-06
+  input: "Kundin: Jana Meier, Birkenweg 8, 44444 Essen. Material: Schlauch 3 Meter 30 Euro."
+  expected:
+    customer_name: "Jana Meier"
+    address: "Birkenweg 8, 44444 Essen"
+    material_total_cents: 3000
+    meister_hours: null
+    geselle_hours: null
+    travel_km: null
+- id: case-07
+  input: "Erik Braun, Rosenstraße 12 55555 Leipzig. Geselle 5 Stunden. Fahrtkosten 15 km."
+  expected:
+    customer_name: "Erik Braun"
+    address: "Rosenstraße 12, 55555 Leipzig"
+    material_total_cents: null
+    meister_hours: null
+    geselle_hours: 5.0
+    travel_km: 15.0
+- id: case-08
+  input: "Firma Test GmbH, Markt 1 66666 Nürnberg. Material: Kabel 10 m 80 Euro. Meister 3 h."
+  expected:
+    customer_name: "Firma Test GmbH"
+    address: "Markt 1, 66666 Nürnberg"
+    material_total_cents: 8000
+    meister_hours: 3.0
+    geselle_hours: null
+    travel_km: null
+- id: case-09
+  input: "Kunde: Lea Fischer, Seeweg 5 77777 Augsburg. Fensterrahmen 4 Stück 200 Euro. Geselle 2.5 h. Anfahrt 5 km."
+  expected:
+    customer_name: "Lea Fischer"
+    address: "Seeweg 5, 77777 Augsburg"
+    material_total_cents: 20000
+    meister_hours: null
+    geselle_hours: 2.5
+    travel_km: 5.0
+- id: case-10
+  input: "Martin Klein, Waldstraße 10 88888 Mainz. Meister 1 h, Geselle 1 h."
+  expected:
+    customer_name: "Martin Klein"
+    address: "Waldstraße 10, 88888 Mainz"
+    material_total_cents: null
+    meister_hours: 1.0
+    geselle_hours: 1.0
+    travel_km: null
+- id: case-11
+  input: "Sarah Weiß, Dorfstraße 2 99999 Kiel. Material: Dachziegel 50 Stück 500 Euro. Anfahrt 30 km."
+  expected:
+    customer_name: "Sarah Weiß"
+    address: "Dorfstraße 2, 99999 Kiel"
+    material_total_cents: 50000
+    meister_hours: null
+    geselle_hours: null
+    travel_km: 30.0
+- id: case-12
+  input: "Tom Berger, Parkweg 6 10101 Potsdam. Geselle 4 h. Material: Schrauben 1 Packung 15 Euro."
+  expected:
+    customer_name: "Tom Berger"
+    address: "Parkweg 6, 10101 Potsdam"
+    material_total_cents: 1500
+    meister_hours: null
+    geselle_hours: 4.0
+    travel_km: null
+- id: case-13
+  input: "Nina Koch, Feldstraße 11 20202 Hannover. Meister 2 h. Material: Holz 5 m 75 Euro. Fahrt 18 km."
+  expected:
+    customer_name: "Nina Koch"
+    address: "Feldstraße 11, 20202 Hannover"
+    material_total_cents: 7500
+    meister_hours: 2.0
+    geselle_hours: null
+    travel_km: 18.0
+- id: case-14
+  input: "Paul Becker, Bergstraße 13 30303 Bonn. Geselle 3 h. Anfahrt 9 km."
+  expected:
+    customer_name: "Paul Becker"
+    address: "Bergstraße 13, 30303 Bonn"
+    material_total_cents: null
+    meister_hours: null
+    geselle_hours: 3.0
+    travel_km: 9.0
+- id: case-15
+  input: "Mara Lange, Flurweg 14 40404 Mannheim. Material: Farbeimer 2 Stück 90 Euro."
+  expected:
+    customer_name: "Mara Lange"
+    address: "Flurweg 14, 40404 Mannheim"
+    material_total_cents: 9000
+    meister_hours: null
+    geselle_hours: null
+    travel_km: null
+- id: case-16
+  input: "Kunde: Sven Peters, Hafenstraße 16 50505 Rostock. Meister 1.5 h. Geselle 2.0 h. 22 km Fahrt."
+  expected:
+    customer_name: "Sven Peters"
+    address: "Hafenstraße 16, 50505 Rostock"
+    material_total_cents: null
+    meister_hours: 1.5
+    geselle_hours: 2.0
+    travel_km: 22.0
+- id: case-17
+  input: "Julia Brandt, Ringstraße 18 60606 Saarbrücken. Material: Rohr 4 m 64 Euro. Geselle 1 h."
+  expected:
+    customer_name: "Julia Brandt"
+    address: "Ringstraße 18, 60606 Saarbrücken"
+    material_total_cents: 6400
+    meister_hours: null
+    geselle_hours: 1.0
+    travel_km: null
+- id: case-18
+  input: "Hendrik Vogel, Dorfplatz 20 70707 Ulm. Meister 2 h. Anfahrt 40 km."
+  expected:
+    customer_name: "Hendrik Vogel"
+    address: "Dorfplatz 20, 70707 Ulm"
+    material_total_cents: null
+    meister_hours: 2.0
+    geselle_hours: null
+    travel_km: 40.0
+- id: case-19
+  input: "Elena Graf, Wiesenweg 21 80808 Erfurt. Material: Dämmung 3 Rollen 180 Euro. Geselle 2 h. Fahrt 14 km."
+  expected:
+    customer_name: "Elena Graf"
+    address: "Wiesenweg 21, 80808 Erfurt"
+    material_total_cents: 18000
+    meister_hours: null
+    geselle_hours: 2.0
+    travel_km: 14.0
+- id: case-20
+  input: "Kunde Jonas Neumann, Pfad 25 90909 Freiburg. Meister 3 h, Geselle 2 h, Anfahrt 6 km."
+  expected:
+    customer_name: "Jonas Neumann"
+    address: "Pfad 25, 90909 Freiburg"
+    material_total_cents: null
+    meister_hours: 3.0
+    geselle_hours: 2.0
+    travel_km: 6.0
