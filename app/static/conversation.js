@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let fullTranscript = '';
   let pendingClarifications = [];
   let latestTtsText = '';
+  let latestAudioData = '';
+  let latestAudioElement = null;
   let currentUtterance;
   const enableManualTts = window.APP_CONFIG?.enableManualTts ?? true;
   const canUseSpeechSynthesis = 'speechSynthesis' in window;
@@ -40,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     latestTtsText = (text || '').trim();
   }
 
+  function setLatestAudioData(audioData) {
+    latestAudioData = audioData || '';
+  }
+
   function speakLatestTts() {
     if (!latestTtsText || !canUseSpeechSynthesis) return;
     if (speechSynthesis.paused && speechSynthesis.speaking) {
@@ -53,15 +59,41 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function pauseTts() {
-    if (!canUseSpeechSynthesis) return;
-    if (speechSynthesis.speaking && !speechSynthesis.paused) {
-      speechSynthesis.pause();
+    if (enableManualTts) {
+      if (!canUseSpeechSynthesis) return;
+      if (speechSynthesis.speaking && !speechSynthesis.paused) {
+        speechSynthesis.pause();
+      }
+      return;
+    }
+    if (latestAudioElement && !latestAudioElement.paused) {
+      latestAudioElement.pause();
     }
   }
 
   function stopTts() {
-    if (!canUseSpeechSynthesis) return;
-    speechSynthesis.cancel();
+    if (enableManualTts) {
+      if (!canUseSpeechSynthesis) return;
+      speechSynthesis.cancel();
+      return;
+    }
+    if (latestAudioElement) {
+      latestAudioElement.pause();
+      latestAudioElement.currentTime = 0;
+    }
+  }
+
+  function playLatestAudio() {
+    if (!latestAudioData) return;
+    if (latestAudioElement && latestAudioElement.paused) {
+      latestAudioElement.play();
+      return;
+    }
+    latestAudioElement = new Audio(`data:audio/mpeg;base64,${latestAudioData}`);
+    latestAudioElement.addEventListener('ended', () => {
+      latestAudioElement = null;
+    });
+    latestAudioElement.play();
   }
 
   function updateTtsTextFromResponse(data) {
@@ -80,15 +112,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function initializeTtsControls() {
     if (!ttsControls) return;
-    if (!enableManualTts) {
+    if (enableManualTts && !canUseSpeechSynthesis) {
       ttsControls.classList.add('hidden');
       return;
     }
-    if (!canUseSpeechSynthesis) {
-      ttsControls.classList.add('hidden');
-      return;
-    }
-    ttsStartBtn?.addEventListener('click', speakLatestTts);
+    ttsStartBtn?.addEventListener('click', () => {
+      if (enableManualTts) {
+        speakLatestTts();
+      } else {
+        playLatestAudio();
+      }
+    });
     ttsPauseBtn?.addEventListener('click', pauseTts);
     ttsStopBtn?.addEventListener('click', stopTts);
   }
@@ -165,7 +199,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (enableManualTts) {
       updateTtsTextFromResponse(data);
     } else if (data.audio) {
-      new Audio(`data:audio/mpeg;base64,${data.audio}`).play();
+      setLatestAudioData(data.audio);
+      playLatestAudio();
     }
     if (data.done && data.log_dir) {
       pdfFrame.src = '/' + data.log_dir + '/invoice.pdf';
@@ -203,7 +238,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (enableManualTts) {
       updateTtsTextFromResponse(data);
     } else if (data.audio) {
-      new Audio(`data:audio/mpeg;base64,${data.audio}`).play();
+      setLatestAudioData(data.audio);
+      playLatestAudio();
     }
     if (data.done && data.log_dir) {
       pdfFrame.src = '/' + data.log_dir + '/invoice.pdf';
